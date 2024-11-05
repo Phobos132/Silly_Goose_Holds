@@ -41,34 +41,39 @@ def create_revolved_shape(this_radius_seed):
     
     result = cq.Workplane("right").polyline(sPnts1).close()
    
-    revolved_shape = (result.revolve(angleDegrees=360, axisStart=(-this_radius, 0, 0), axisEnd=(-this_radius, 1, 0))
-                      .cut(inverse_block_2).edges().fillet(0.25)
-                      .cut(inverse_block_1)
-                      .cut(bolt_hole)
-                      
-    )
+    revolved_shape = result.revolve(angleDegrees=360, axisStart=(-this_radius, 0, 0), axisEnd=(-this_radius, 1, 0)).fillet(fillet_radius)
+    
+    revolved_shape = revolved_shape.cut(inverse_block_2).edges().fillet(0.25)
+    revolved_shape = revolved_shape.cut(inverse_block_1)
+    revolved_shape = revolved_shape.cut(bolt_hole)
+
     
     return revolved_shape
 
 shapes = []
 test = cq.Workplane()
 holds_to_generate = 10
+holds_generated = 0
 # Generate 10 STEP files
 for i in range(holds_to_generate):
     #if i = 0:
     #    test = create_revolved_shape(this_radius_seed=i)  # Use i as seed for randomness
     #else
-    shape = create_revolved_shape(this_radius_seed=i)  # Use i as seed for randomness
-    shapes.append(shape)
-    test = test.union(shape.translate([6*i,0,0]))
-    file_name = f"revolved_shape_{i+1}.step"
-    cq.exporters.export(shape, file_name)
-    print(f"Generated {file_name}")
+    try:
+        shape = create_revolved_shape(this_radius_seed=i)  # Use i as seed for randomness
+        shapes.append(shape)
+        test = test.union(shape.translate([6*i,0,0]))
+        file_name = f"revolved_shape_{i+1}.step"
+        cq.exporters.export(shape, file_name)
+        print(f"Generated {file_name}")
+        holds_generated += 1
+    except:
+        continue
 
 test = (cq.Assembly(shapes[0], cq.Location(cq.Vector(0, 0, 0)), name="root")
         #.add(shapes[0], loc=cq.Location(cq.Vector(0, 0, 6)))
         )
-for i in range(holds_to_generate-1):
+for i in range(holds_generated-1):
     test.add(shapes[i+1], loc=cq.Location(cq.Vector(6*(i+1), 0, 0)))
 
 # test = (cq.Workplane().union(shapes[1].translate([6,0,0]))
