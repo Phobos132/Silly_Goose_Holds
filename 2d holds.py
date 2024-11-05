@@ -18,8 +18,7 @@ def create_half_hold(seed = -1,hold_height = 100.0,edge_radius = 0,edge_range = 
     # Pick the parameters that define the hold
     if edge_radius <= 0:
         edge_radius = rnd.triangular(edge_range[0],edge_range[1],edge_range[2])
-    
-    # Calculate the tangent arc of the front of the hold
+        
     if hold_thickness <= 0:
         hold_thickness = rnd.uniform(20,38)
     
@@ -29,7 +28,7 @@ def create_half_hold(seed = -1,hold_height = 100.0,edge_radius = 0,edge_range = 
     if edge_center <= 0:
         vec.loc['edge_center','x'] = rnd.uniform(edge_radius,38-edge_radius)
     
-    # Pick the vertical center of the edge, ensure the
+    # Pick the vertical center of the edge
     lowest_edge_center = max(-(hold_height/2.0-25),-(vec.loc['edge_center','x'] + edge_radius))
     highest_edge_center = min((hold_height/2.0-25-edge_radius),vec.loc['edge_center','x'] - edge_radius)
     if highest_edge_center < lowest_edge_center:
@@ -37,7 +36,7 @@ def create_half_hold(seed = -1,hold_height = 100.0,edge_radius = 0,edge_range = 
     vec.loc['edge_center','y'] = rnd.uniform(
         lowest_edge_center,highest_edge_center)
     
-    # Pick a radius that is not too small, adjust the lognorm values to tweak
+    # Pick a ledge radius that is not too small, adjust the lognorm values to tweak
     # things to a higher or lower radius or change the variance
     ledge_radius = (rnd.lognormvariate(0, 1) 
                     +  np.linalg.norm(vec.loc['edge_center'], axis=0)
@@ -52,7 +51,6 @@ def create_half_hold(seed = -1,hold_height = 100.0,edge_radius = 0,edge_range = 
     horizontal_to_edge_center_angle = np.arctan(vec.loc['edge_center','y']/vec.loc['edge_center','x'])
     a = np.linalg.norm(vec.loc['edge_center'], axis=0)
     b = ledge_radius
-    
     # Decide if it should be concave or convex
     concave = rnd.randint(0,1)
     if concave:
@@ -60,13 +58,11 @@ def create_half_hold(seed = -1,hold_height = 100.0,edge_radius = 0,edge_range = 
         edge_center_to_ledge_center_angle = np.arccos((c**2 - a**2 - b**2)/(-2*a*b))
         horizontal_to_ledge_center_angle = ( horizontal_to_edge_center_angle 
                                             + edge_center_to_ledge_center_angle)
-        
     else:
         c = ledge_radius - edge_radius
         edge_center_to_ledge_center_angle = np.arccos((c**2 - a**2 - b**2)/(-2*a*b))
         horizontal_to_ledge_center_angle = ( horizontal_to_edge_center_angle 
                                             - edge_center_to_ledge_center_angle)
-    
     vec.loc['ledge_center'] = [ledge_radius*np.cos(horizontal_to_ledge_center_angle),
                                ledge_radius*np.sin(horizontal_to_ledge_center_angle)]   
     
@@ -78,7 +74,8 @@ def create_half_hold(seed = -1,hold_height = 100.0,edge_radius = 0,edge_range = 
         zero_offset = max(0,vec.loc['edge_center','y'] + edge_radius,
                             vec.loc['ledge_center','y'] + ledge_radius)
     vec['y'] = vec['y'] - zero_offset + hold_height/2
-    
+
+    # Start calculating the arc that forms the face of the hold
     face_offset = hold_thickness - vec.loc['edge_center','x']
     # Note that a negative radius here indicates that the suface is convex
     face_radius = ((edge_radius**2 - face_offset**2 - vec.loc['edge_center','y']**2)
@@ -146,6 +143,9 @@ def create_half_hold(seed = -1,hold_height = 100.0,edge_radius = 0,edge_range = 
                                                ).values
     return arcs,vec
 
+# Function to generate a full hold
+# Generates two half hold profiles with the same thickness, mirrors one vertically then sticks them together
+# Makes a cadquery shape by extruding the hold profile and cutting the bolt hole away
 def generate_hold(seed = -1):
     if seed == -1:
         rnd.seed()
@@ -172,17 +172,18 @@ def generate_hold(seed = -1):
         .threePointArc(arcs_2.loc['ledge',['mid_x','mid_y']].values, arcs_2.loc['ledge',['start_x','start_y']].values)
         .close()
         .extrude(75)
+        .translate((-37.5,0,0))
     )
     
-    bolt_hole = cq.Workplane("right").polyline([(0,0),(200,0),(200,10),(15,10),(15,5),(0,5)]).close().revolve(angleDegrees=360, axisStart=(0, 0, 0), axisEnd=(1, 0, 0)).translate((37.5,0,0))
+    bolt_hole = cq.Workplane("right").polyline([(0,0),(200,0),(200,10),(15,10),(15,5),(0,5)]).close().revolve(angleDegrees=360, axisStart=(0, 0, 0), axisEnd=(1, 0, 0))
     result = result.cut(bolt_hole)
     
     return result
 
-
+# Generate a whole bunch of holds and put them into an array
 shapes_i = []
 test = cq.Workplane()
-holds_to_generate = 1
+holds_to_generate = 10
 holds_generated = 0
 test = cq.Assembly()
 # Generate 10 STEP files
