@@ -63,8 +63,8 @@ for i in range(holds_to_generate):
         shape = create_revolved_shape(this_radius_seed=i)  # Use i as seed for randomness
         shapes.append(shape)
         test = test.union(shape.translate([6*i,0,0]))
-        file_name = f"revolved_shape_{i+1}.step"
-        cq.exporters.export(shape, file_name)
+        #file_name = f"revolved_shape_{i+1}.step"
+        #cq.exporters.export(shape, file_name)
         print(f"Generated {file_name}")
         holds_generated += 1
     except:
