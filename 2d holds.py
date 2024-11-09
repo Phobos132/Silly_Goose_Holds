@@ -28,8 +28,8 @@ def create_half_hold(seed = -1,hold_height = 60.0,edge_radius = 0,edge_range = [
     if edge_center <= 0:
         vec.loc['edge_center','x'] = rnd.uniform(edge_radius,38-edge_radius)
     
-    if hold_thickness < vec.loc['edge_center','x'] + edge_radius:
-        hold_thickness = vec.loc['edge_center','x'] + edge_radius + 1
+    #if hold_thickness < vec.loc['edge_center','x'] + edge_radius:
+    #    hold_thickness = vec.loc['edge_center','x'] + edge_radius + 1
     
     # Pick the vertical center of the edge
     lowest_edge_center = max(-(hold_height/2.0-25),-(vec.loc['edge_center','x'] + edge_radius))
@@ -92,7 +92,7 @@ def create_half_hold(seed = -1,hold_height = 60.0,edge_radius = 0,edge_range = [
     arcs = pd.DataFrame(columns=['start_x','start_y','end_x','end_y','mid_x','mid_y','radius'])
     arcs.loc['ledge','radius'] = ledge_radius
     arcs.loc['edge','radius'] = edge_radius
-    arcs.loc['face','radius'] = abs(face_radius)
+    arcs.loc['face','radius'] = face_radius
 
     arcs.loc['ledge',['center_x','center_y']] = vec.loc['ledge_center'].values
     arcs.loc['edge',['center_x','center_y']] = vec.loc['edge_center'].values
@@ -156,14 +156,24 @@ def generate_gcode(arcs_1,arcs_2,concave_1,concave_2):
     arcs_2 = arcs_2/25.4
     
     if concave_1:
-        g23_1 = 'G2'
+        concave_edge_1 = 'G2'
     else:
-        g23_1 = 'G3'
+        concave_edge_1 = 'G3'
         
     if concave_2:
-        g23_2 = 'G2'
+        concave_edge_2 = 'G2'
     else:
-        g23_2 = 'G3'
+        concave_edge_2 = 'G3'
+        
+    if arcs_1.loc['face','radius'] > 0:
+        concave_face_1 = 'G2'
+    else:
+        concave_face_1 = 'G3'
+        
+    if arcs_2.loc['face','radius'] > 0:
+        concave_face_2 = 'G2'
+    else:
+        concave_face_2 = 'G3'
         
     with open(r'NC Files\Output.ngc', 'w') as text_file:
         text_file.write(
@@ -202,12 +212,12 @@ o150 sub (#1 = z depth, #2 = number of steps, #3 = feedrate)
     #5 = #4
     o151 while [#5 GE #1]
         X{arcs_2.loc['ledge','start_x']:.4f} Y{arcs_2.loc['ledge','start_y']:.4f} Z[#5]
-        {g23_2} X{arcs_2.loc['ledge','end_x']:.4f} Y{arcs_2.loc['ledge','end_y']:.4f} I{arcs_2.loc['ledge','center_x']:.4f} J{arcs_2.loc['ledge','center_y']:.4f}
+        {concave_edge_2} X{arcs_2.loc['ledge','end_x']:.4f} Y{arcs_2.loc['ledge','end_y']:.4f} I{arcs_2.loc['ledge','center_x']:.4f} J{arcs_2.loc['ledge','center_y']:.4f}
         G3 X{arcs_2.loc['edge','end_x']:.4f} Y{arcs_2.loc['edge','end_y']:.4f} I{arcs_2.loc['edge','center_x']:.4f} J{arcs_2.loc['edge','center_y']:.4f}
-        G3 X{arcs_2.loc['face','end_x']:.4f} Y{arcs_2.loc['face','end_y']:.4f} I{arcs_2.loc['face','center_x']:.4f} J{arcs_2.loc['face','center_y']:.4f}
-        G3 X{arcs_1.loc['face','start_x']:.4f} Y{arcs_1.loc['face','start_y']:.4f} I{arcs_1.loc['face','center_x']:.4f} J{arcs_1.loc['face','center_y']:.4f}
+        {concave_face_2} X{arcs_2.loc['face','end_x']:.4f} Y{arcs_2.loc['face','end_y']:.4f} I{arcs_2.loc['face','center_x']:.4f} J{arcs_2.loc['face','center_y']:.4f}
+        {concave_face_1} X{arcs_1.loc['face','start_x']:.4f} Y{arcs_1.loc['face','start_y']:.4f} I{arcs_1.loc['face','center_x']:.4f} J{arcs_1.loc['face','center_y']:.4f}
         G3 X{arcs_1.loc['edge','start_x']:.4f} Y{arcs_1.loc['edge','start_y']:.4f} I{arcs_1.loc['edge','center_x']:.4f} J{arcs_1.loc['edge','center_y']:.4f}
-        {g23_1} X{arcs_1.loc['ledge','start_x']:.4f} Y{arcs_1.loc['ledge','start_y']:.4f} I{arcs_1.loc['ledge','center_x']:.4f} J{arcs_1.loc['ledge','center_y']:.4f}
+        {concave_edge_1} X{arcs_1.loc['ledge','start_x']:.4f} Y{arcs_1.loc['ledge','start_y']:.4f} I{arcs_1.loc['ledge','center_x']:.4f} J{arcs_1.loc['ledge','center_y']:.4f}
         G1 X0.0 Y0.0
         #5 = [#5 + #4]
     o151 endwhile
