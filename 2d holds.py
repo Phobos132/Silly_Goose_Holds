@@ -11,7 +11,7 @@ import sympy as sym
     #make it so the ledge arc cant go into negative x
     #if the edge is too close to the origin and the face and ledge
     #radii are two large you get problems
-def create_half_hold(seed = -1,hold_height = 80.0,edge_radius = 0,edge_range = [1,20,3],edge_center = 0,hold_thickness = 0):
+def create_half_hold(seed = -1,hold_height = 60.0,edge_radius = 0,edge_range = [1,20,3],edge_center = 0,hold_thickness = 0):
     if seed == -1:
         rnd.seed()
     
@@ -35,7 +35,8 @@ def create_half_hold(seed = -1,hold_height = 80.0,edge_radius = 0,edge_range = [
     lowest_edge_center = max(-(hold_height/2.0-25),-(vec.loc['edge_center','x'] + edge_radius))
     highest_edge_center = min((hold_height/2.0-25-edge_radius),vec.loc['edge_center','x'] - edge_radius)
     if highest_edge_center < lowest_edge_center:
-        raise Exception("edge_radius too big for hold height")
+        return pd.DataFrame(),pd.DataFrame(),0
+        #raise Exception("edge_radius too big for hold height")
     vec.loc['edge_center','y'] = rnd.uniform(
         lowest_edge_center,highest_edge_center)
     
@@ -164,7 +165,7 @@ def generate_gcode(arcs_1,arcs_2,concave_1,concave_2):
     else:
         g23_2 = 'G3'
         
-    with open("Output.ngc", "w") as text_file:
+    with open(r'NC Files\Output.ngc', 'w') as text_file:
         text_file.write(
 fr'''
 (setup and tool call - 1st argument is tool number)
@@ -195,7 +196,7 @@ fr'''
 o150 sub (#1 = z depth, #2 = number of steps, #3 = feedrate)  
     G0 X0.0 Y2.0 S2000 M3
     G0 Z2.0
-    G41
+    G42
     G1 X0.0 Y0.0 Z0.1 F#3
     #4 = [#1/#2]
     #5 = #4
@@ -279,7 +280,7 @@ def generate_hold(seed = -1):
 # Generate a whole bunch of holds and put them into an array
 #shapes_i = []
 #test = cq.Workplane()
-holds_to_generate = 2
+holds_to_generate = 16
 holds_generated = 0
 test = cq.Assembly()
 # Generate 10 STEP files

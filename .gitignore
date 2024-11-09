@@ -1,10 +1,5 @@
-# Ignore list for KiCAD Projects
-# Temporary files
-*.bak
-*~
-*-backups*
-_autosave-*
-*.tmp
-*.step
+#ignore solid model outputs
 *.stp
+*.step
 *.stl
+/NC Files
