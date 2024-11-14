@@ -2,7 +2,7 @@ import cadquery as cq
 import random as rnd
 import numpy as np
 import pandas as pd
-import sympy as sym
+#import sympy as sym
 
 # This script generates a 2d profile climbing hold that can be cut from
 # a 2x4
@@ -41,11 +41,11 @@ class hold:
     def __init__(self,
                  top_edge_position = [30,30],
                  top_edge_radius = 10,
-                 top_ledge_angle = 0,
+                 top_ledge_angle = np.pi/10,
                  top_ledge_start_height = 30,
                  bottom_edge_position = [30,-30],
                  bottom_edge_radius = 10,
-                 bottom_ledge_angle = np.pi/2,
+                 bottom_ledge_angle = np.pi*4/9,
                  bottom_ledge_start_height = -30,
                  face_angle = np.pi/2
                  ):
