@@ -58,13 +58,14 @@ class hold:
         self.find_tangent_arc(top_ledge.points.loc['start'],
                          top_ledge_angle,
                          top_edge.points.loc['center'],
-                         top_edge.radius)
+                         top_edge.radius'
+                         "left")
         top_face = arc()
         bottom_ledge = arc()
         bottom_edge = arc()
         bottom_face = arc()
         
-    def find_tangent_arc(self,start_point,start_angle,goal_arc_center,goal_arc_radius):
+    def find_tangent_arc(self,start_point,start_angle,goal_arc_center,goal_arc_radius,goal_side):
         sx = start_point['x']
         sy = start_point['y']
         gx = goal_arc_center['x']
@@ -76,7 +77,10 @@ class hold:
         e_hat = np.array([-np.sin(start_angle),np.cos(start_angle)])
         a = np.dot(c,d_hat)
         b = np.dot(c,e_hat)
-        r = (a**2 - gr**2 + b**2)/(2 * (gr+b))
+        if goal_side == 'left':
+            r = (a**2 - gr**2 + b**2)/(2 * (gr+b))
+        else:
+            
         tangent_arc_center =  start_point + r * e_hat
         print(tangent_arc_center)
         print(r)
