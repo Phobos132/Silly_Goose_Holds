@@ -2,6 +2,7 @@
 import random as rnd
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 #import sympy as sym
 
 # This script generates a 2d profile climbing hold that can be cut from
@@ -55,11 +56,19 @@ class hold:
         top_edge.radius = top_edge_radius
         top_ledge = arc()
         top_ledge.points.loc['start'] = [top_ledge_start_height,0]
-        self.find_tangent_arc(top_ledge.points.loc['start'],
+        top_ledge.points.loc['center'],top_ledge.radius  = self.find_tangent_arc(top_ledge.points.loc['start'],
                          top_ledge_angle,
                          top_edge.points.loc['center'],
-                         top_edge.radius'
-                         "left")
+                         top_edge.radius,
+                         "right")
+        figure, axes = plt.subplots()
+        edge_circle = plt.Circle(top_edge.points.loc['center'],top_edge.radius, fill = False)
+        axes.add_artist(edge_circle)
+        ledge_circle = plt.Circle(top_ledge.points.loc['center'],top_ledge.radius, fill = False)
+        axes.add_artist(ledge_circle)
+        axes.set_xlim(0,100)
+        axes.set_ylim(0,100)
+        plt.show()
         top_face = arc()
         bottom_ledge = arc()
         bottom_edge = arc()
@@ -78,9 +87,9 @@ class hold:
         a = np.dot(c,d_hat)
         b = np.dot(c,e_hat)
         if goal_side == 'left':
-            r = (a**2 - gr**2 + b**2)/(2 * (gr+b))
+            r = (a**2 - gr**2 + b**2)/(2 * (b + gr))
         else:
-            
+            r = (a**2 - gr**2 + b**2)/(2 * (b - gr))
         tangent_arc_center =  start_point + r * e_hat
         print(tangent_arc_center)
         print(r)
