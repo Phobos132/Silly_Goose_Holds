@@ -7,13 +7,14 @@ import pandas as pd
 # This script generates a 2d profile climbing hold that can be cut from
 # a 2x4
 class arc:
-    points = pd.DataFrame(index=['start','end','center'],columns=['x','y'],dtype=float)
-    clockwise = False
-    radius = 0.0
+    #points = pd.DataFrame(index=['start','end','center'],columns=['x','y'],dtype=float)
+    #clockwise = False
+    #radius = 0.0
     def __init__(self,start_point = [0,0]
                  ,end_point = [1,1],
                  center_point = [1,0],
                  clockwise_in = True):
+        self.points = pd.DataFrame(index=['start','end','center'],columns=['x','y'],dtype=float)
         self.points.loc['start'] = start_point
         self.points.loc['end'] = end_point
         self.points.loc['center'] = center_point
@@ -41,7 +42,7 @@ class hold:
     def __init__(self,
                  top_edge_position = [30,30],
                  top_edge_radius = 10,
-                 top_ledge_angle = np.pi/10,
+                 top_ledge_angle = 4*np.pi/10,
                  top_ledge_start_height = 20,
                  bottom_edge_position = [30,-30],
                  bottom_edge_radius = 10,
@@ -53,7 +54,7 @@ class hold:
         top_edge.points.loc['center'] = top_edge_position
         top_edge.radius = top_edge_radius
         top_ledge = arc()
-        top_ledge.points.loc['start'] = [0,top_ledge_start_height]
+        top_ledge.points.loc['start'] = [top_ledge_start_height,0]
         self.find_tangent_arc(top_ledge.points.loc['start'],
                          top_ledge_angle,
                          top_edge.points.loc['center'],
@@ -70,10 +71,15 @@ class hold:
         gy = goal_arc_center['y']
         gr = goal_arc_radius
         t = start_angle
-        b = (np.tan(t)*(gy-sy) + gx - sx) / (np.tan(t)*np.sin(t) + np.cos(t))
-        a = (gx - sx - b*np.cos(t)) / np.sin(t)
-        r = (a**2 - b**2 - gr**2) / (2*gr+2*a)
-        tangent_arc_center = [r*np.cos(t-np.pi/2),r*np.cos(t-np.pi/2)]
+        c = goal_arc_center - start_point
+        d_hat = np.array([np.cos(start_angle),np.sin(start_angle)])
+        e_hat = np.array([-np.sin(start_angle),np.cos(start_angle)])
+        a = np.dot(c,d_hat)
+        b = np.dot(c,e_hat)
+        r = (a**2 - gr**2 + b**2)/(2 * (gr+b))
+        tangent_arc_center =  start_point + r * e_hat
+        print(tangent_arc_center)
+        print(r)
         return tangent_arc_center,r
 
 test_hold = hold()
