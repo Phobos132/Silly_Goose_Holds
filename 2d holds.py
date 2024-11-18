@@ -43,36 +43,78 @@ class hold:
     def __init__(self,
                  top_edge_position = [30,30],
                  top_edge_radius = 10,
-                 top_ledge_angle = 4*np.pi/10,
+                 top_ledge_angle = np.pi/10,
                  top_ledge_start_height = 20,
                  bottom_edge_position = [30,-30],
                  bottom_edge_radius = 10,
                  bottom_ledge_angle = -np.pi/10,
                  bottom_ledge_start_height = -20,
-                 face_angle = np.pi/2
+                 face_angle = np.pi/2+np.pi/10,
+                 face_thickness = 25
                  ):
-        top_edge = arc()
-        top_edge.points.loc['center'] = top_edge_position
-        top_edge.radius = top_edge_radius
-        top_ledge = arc()
-        top_ledge.points.loc['start'] = [top_ledge_start_height,0]
-        top_ledge.points.loc['center'],top_ledge.radius  = self.find_tangent_arc(top_ledge.points.loc['start'],
-                         top_ledge_angle,
-                         top_edge.points.loc['center'],
-                         top_edge.radius,
-                         "right")
+        self.top_edge = arc()
+        self.top_edge.points.loc['center'] = top_edge_position
+        self.top_edge.radius = top_edge_radius
+        self.top_ledge = arc()
+        self.top_ledge.points.loc['start'] = [0,top_ledge_start_height]
+        self.top_ledge.points.loc['center'],self.top_ledge.radius = self.find_tangent_arc(
+            self.top_ledge.points.loc['start'],
+            top_ledge_angle,
+            self.top_edge.points.loc['center'],
+            self.top_edge.radius,
+            "left"
+            )
+        self.top_face = arc()
+        self.top_face.points.loc['start'] = [face_thickness,0]
+        self.top_face.points.loc['center'],self.top_face.radius  = self.find_tangent_arc(
+            self.top_face.points.loc['start'],
+            face_angle,
+            self.top_edge.points.loc['center'],
+            self.top_edge.radius,
+            "right"
+            )
+
+        self.bottom_edge = arc()
+        self.bottom_edge.points.loc['center'] = bottom_edge_position
+        self.bottom_edge.radius = bottom_edge_radius
+        self.bottom_ledge = arc()
+        self.bottom_ledge.points.loc['start'] = [0,bottom_ledge_start_height]
+        self.bottom_ledge.points.loc['center'],self.bottom_ledge.radius = self.find_tangent_arc(
+            self.bottom_ledge.points.loc['start'],
+            bottom_ledge_angle,
+            self.bottom_edge.points.loc['center'],
+            self.bottom_edge.radius,
+            "right"
+            )
+        self.bottom_face = arc()
+        self.bottom_face.points.loc['start'] = [face_thickness,0]
+        self.bottom_face.points.loc['center'],self.bottom_face.radius  = self.find_tangent_arc(
+            self.bottom_face.points.loc['start'],
+            face_angle + np.pi,
+            self.bottom_edge.points.loc['center'],
+            self.bottom_edge.radius,
+            "left"
+            )
+        
         figure, axes = plt.subplots()
-        edge_circle = plt.Circle(top_edge.points.loc['center'],top_edge.radius, fill = False)
+        edge_circle = plt.Circle(self.top_edge.points.loc['center'],self.top_edge.radius, fill = False)
         axes.add_artist(edge_circle)
-        ledge_circle = plt.Circle(top_ledge.points.loc['center'],top_ledge.radius, fill = False)
+        ledge_circle = plt.Circle(self.top_ledge.points.loc['center'],self.top_ledge.radius, fill = False)
         axes.add_artist(ledge_circle)
+        ledge_circle = plt.Circle(self.top_face.points.loc['center'],self.top_face.radius, fill = False)
+        axes.add_artist(ledge_circle)
+        
+        #figure, axes = plt.subplots()
+        edge_circle = plt.Circle(self.bottom_edge.points.loc['center'],self.bottom_edge.radius, fill = False)
+        axes.add_artist(edge_circle)
+        ledge_circle = plt.Circle(self.bottom_ledge.points.loc['center'],self.bottom_ledge.radius, fill = False)
+        axes.add_artist(ledge_circle)
+        ledge_circle = plt.Circle(self.bottom_face.points.loc['center'],self.bottom_face.radius, fill = False)
+        axes.add_artist(ledge_circle)
+        
         axes.set_xlim(0,100)
-        axes.set_ylim(0,100)
+        axes.set_ylim(-100,100)
         plt.show()
-        top_face = arc()
-        bottom_ledge = arc()
-        bottom_edge = arc()
-        bottom_face = arc()
         
     def find_tangent_arc(self,start_point,start_angle,goal_arc_center,goal_arc_radius,goal_side):
         sx = start_point['x']
