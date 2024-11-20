@@ -133,6 +133,8 @@ class hold:
         else:
             r = (a**2 - gr**2 + b**2)/(2 * (b - gr))
         tangent_arc_center =  start_point + r * e_hat
+        tangent_point = tangent_arc_center + r*(goal_arc_center-tangent_arc_center)/np.linalg.norm(goal_arc_center - tangent_arc_center)
+
         print(tangent_arc_center)
         print(r)
         return tangent_arc_center,r
