@@ -161,34 +161,49 @@ def generate_random_hold(seed = -1,hold_height = 60.0,edge_radius = 0,edge_range
     
     random_hold = hold()
     # Pick the parameters that define the hold
-    edge_radius = rnd.triangular(edge_range[0],edge_range[1],edge_range[2])
     hold_thickness = rnd.uniform(20,38)
-    edge_center_x = rnd.uniform(max(edge_radius,8),min(38-edge_radius,edge_radius*8))
+    top_edge_radius = rnd.triangular(edge_range[0],edge_range[1],edge_range[2])
+    top_edge_center_x = rnd.uniform(max(top_edge_radius,8),min(38-top_edge_radius,top_edge_radius*8))
+    top_edge_center_y = rnd.uniform(10,hold_height - top_edge_radius)
+    top_ledge_angle = rnd.triangular(-np.pi/8,0,np.pi/8)
+    bottom_edge_radius = rnd.triangular(edge_range[0],edge_range[1],edge_range[2])
+    bottom_edge_center_x = rnd.uniform(max(bottom_edge_radius,8),min(38-bottom_edge_radius,bottom_edge_radius*8))
+    bottom_edge_center_y = -rnd.uniform(10,hold_height - bottom_edge_radius)
+    bottom_ledge_angle = rnd.triangular(-np.pi/8,0,np.pi/8)
+    
+    random_hold = hold(top_edge_position = [top_edge_center_x,top_edge_center_y],
+                       top_edge_radius = top_edge_radius,
+                       top_ledge_angle = top_ledge_angle,
+                       bottom_edge_position = [bottom_edge_center_x,bottom_edge_center_y],
+                       bottom_edge_radius = bottom_edge_radius,
+                       bottom_ledge_angle = bottom_ledge_angle,
+                       face_angle = np.pi/2
+                       )
    
-    # Pick the vertical center of the edge relative to where the ledge meets 
-    # the wall
-    lowest_edge_center = max(-(hold_height/2.0-25),-(edge_center_x + edge_radius))
-    highest_edge_center = min((hold_height/2.0-25-edge_radius),edge_center_x - edge_radius)
-    if highest_edge_center < lowest_edge_center:
-        return pd.DataFrame(),pd.DataFrame(),0
-        #raise Exception("edge_radius too big for hold height")
-    #vec.loc['edge_center','y'] = rnd.uniform(lowest_edge_center,highest_edge_center)
-    edge_center_y = rnd.uniform(lowest_edge_center,highest_edge_center)
+    # # Pick the vertical center of the edge relative to where the ledge meets 
+    # # the wall
+    # lowest_edge_center = max(-(hold_height/2.0-25),-(edge_center_x + edge_radius))
+    # highest_edge_center = min((hold_height/2.0-25-edge_radius),edge_center_x - edge_radius)
+    # if highest_edge_center < lowest_edge_center:
+    #     return pd.DataFrame(),pd.DataFrame(),0
+    #     #raise Exception("edge_radius too big for hold height")
+    # #vec.loc['edge_center','y'] = rnd.uniform(lowest_edge_center,highest_edge_center)
+    # edge_center_y = rnd.uniform(lowest_edge_center,highest_edge_center)
     
-    # Pick a ledge radius that is not too small, adjust the lognorm values to tweak
-    # things to a higher or lower radius or change the variance
-    ledge_radius = (rnd.lognormvariate(0, 1) 
-                    +  np.linalg.norm([edge_center_x,edge_center_y])
-                    )
+    # # Pick a ledge radius that is not too small, adjust the lognorm values to tweak
+    # # things to a higher or lower radius or change the variance
+    # ledge_radius = (rnd.lognormvariate(0, 1) 
+    #                 +  np.linalg.norm([edge_center_x,edge_center_y])
+    #                 )
     
-
+    
     concave = rnd.randint(0,1)
 
     # Offset everything vertically so the highest point is at the top edge of the
     # blank.
     if concave:
         #zero_offset = max(0,vec.loc['edge_center','y'] + edge_radius)
-        zero_offset = max(0,arcs.loc['ledge','center_y'] + edge_radius)
+        zero_offset = max(0,edge_center_y + edge_radius)
     else:
         #zero_offset = max(0,vec.loc['edge_center','y'] + edge_radius,vec.loc['ledge_center','y'] + ledge_radius)
         zero_offset = max(0,arcs.loc['ledge','center_y'] + edge_radius,arcs.loc['ledge','center_y'] + ledge_radius)
@@ -335,6 +350,7 @@ def generate_hold(o_code_number,seed = -1,):
     if seed == -1:
         rnd.seed()
     
+    this_hold = generate_random_hold(seed,hold_height=62,hold_thickness=20)
     # arcs_1 = pd.DataFrame()
     # while arcs_1.empty:
     #     arcs_1,vec_1,concave_1 = create_half_hold(seed = rnd.randint(0, 99999))
@@ -423,7 +439,7 @@ g_code_contouring_preamble = fr'''
 #test = cq.Workplane()
 holds_to_generate = 1
 holds_generated = 0
-test = cq.Assembly()
+#test = cq.Assembly()
 contour_g_codes = []
 # Generate 10 STEP files
 for i in range(holds_to_generate):
