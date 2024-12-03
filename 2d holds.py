@@ -90,12 +90,6 @@ class hold:
                  face_thickness = 30
                  ):
         
-        self.top_ledge_angle = top_ledge_angle
-        self.top_ledge_start_height = top_ledge_start_height
-        self.bottom_ledge_angle = bottom_ledge_angle
-        self.bottom_ledge_start_height = bottom_ledge_start_height
-        self.face_angle = face_angle
-        self.face_thickness = face_thickness
         
         self.top_edge = arc(clockwise_in = True)
         self.top_edge.points.loc['center'] = top_edge_position
@@ -152,6 +146,18 @@ class hold:
         
         #self.serial = self.generate_serial()
         self.plot_hold()
+
+    def scale_hold(self,scale_factor):
+        scaled_hold = copy.deepcopy(self)
+        scaled_hold.top_ledge.points = scaled_hold.top_ledge.points*scale_factor
+        scaled_hold.top_edge.points = scaled_hold.top_ledge.points*scale_factor
+        scaled_hold.top_face.points = scaled_hold.top_ledge.points*scale_factor
+
+        scaled_hold.bottom_ledge.points = scaled_hold.top_ledge.points*scale_factor
+        scaled_hold.bottom_edge.points = scaled_hold.top_ledge.points*scale_factor
+        scaled_hold.bottom_face.points = scaled_hold.top_ledge.points*scale_factor
+        scaled_hold.refresh()
+        return scaled_hold
 
     def plot_hold(self):
         # figure settings
@@ -262,7 +268,7 @@ def generate_random_hold(seed = -1,hold_height = 40.0,edge_radius = 0,edge_range
 
     return random_hold
 
-def generate_gcode(arcs_1,arcs_2,concave_1,concave_2,o_code_number):
+def generate_gcode(hold):
     arcs_1 = arcs_1/25.4
     arcs_2 = arcs_2/25.4
     
