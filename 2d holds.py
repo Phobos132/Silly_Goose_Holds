@@ -130,13 +130,17 @@ class hold:
         
         start_point = pd.DataFrame(index=['start'],columns=['x','y'],dtype=float)
         start_point.loc['start'] = [0,bottom_ledge_start_height]
-        self.arcs['bottom_ledge'] = self.find_tangent_arc(
+        temp_arc = self.find_tangent_arc(
             start_point.loc['start'],
             bottom_ledge_angle,
             self.arcs['bottom_edge'].points.loc['center'],
             self.arcs['bottom_edge'].radius,
             "right"
             )
+        self.arcs['bottom_ledge'] = copy.deep_copy(temp_arc)
+        self.arcs['bottom_ledge'].points['start'] = temp_arc.points['end']
+        self.arcs['bottom_ledge'].points['end'] = temp_arc.points['start']
+        self.arcs['bottom_ledge'].refresh()
         
         start_point = pd.DataFrame(index=['start'],columns=['x','y'],dtype=float)
         start_point.loc['start'] = [face_thickness,0]
@@ -147,8 +151,13 @@ class hold:
             self.arcs['bottom_edge'].radius,
             "left"
             )
-        self.arcs['bottom_edge'].points.loc['start'] = self.arcs['bottom_ledge'].points.loc['end']
-        self.arcs['bottom_edge'].points.loc['end'] = self.arcs['bottom_face'].points.loc['end']
+        self.arcs['bottom_face'] = copy.deep_copy(temp_arc)
+        self.arcs['bottom_face'].points['start'] = temp_arc.points['end']
+        self.arcs['bottom_face'].points['end'] = temp_arc.points['start']
+        self.arcs['bottom_face'].refresh()
+
+        self.arcs['bottom_edge'].points.loc['start'] = self.arcs['bottom_face'].points.loc['end']
+        self.arcs['bottom_edge'].points.loc['end'] = self.arcs['bottom_ledge'].points.loc['start']
         self.arcs['bottom_edge'].refresh()
         
         #self.serial = self.generate_serial()
