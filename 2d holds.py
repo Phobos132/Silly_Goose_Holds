@@ -77,6 +77,13 @@ my_arc.radius
 class hold:
     # class to hold all the information needed to define a hold consisting of
     #six arcs
+    self.arcs = {'top_ledge':arc(),
+                'top_edge':arc(),
+                'top_face':arc(),
+                'bottom_face':arc(),
+                'bottom_edge':arc(),
+                'bottom_ledge':arc()
+                }
     def __init__(self,
                  top_edge_position = [30,30],
                  top_edge_radius = 10,
@@ -91,71 +98,68 @@ class hold:
                  ):
         
         
-        self.top_edge = arc(clockwise_in = True)
-        self.top_edge.points.loc['center'] = top_edge_position
-        self.top_edge.radius = top_edge_radius
+        self.arcs['top_edge'] = arc(clockwise_in = True)
+        self.arcs['top_edge'].points.loc['center'] = top_edge_position
+        self.arcs['top_edge'].radius = top_edge_radius
         
         start_point = pd.Series(data = [0,top_ledge_start_height],index=['x','y'],dtype=float)
-        self.top_ledge = self.find_tangent_arc(
+        self.arcs['top_ledge'] = self.find_tangent_arc(
             start_point,
             top_ledge_angle,
-            self.top_edge.points.loc['center'],
-            self.top_edge.radius,
+            self.arcs['top_edge'].points.loc['center'],
+            self.arcs['top_edge'].radius,
             "left"
             )
         
         start_point = pd.DataFrame(index=['start'],columns=['x','y'],dtype=float)
         start_point.loc['start'] = [face_thickness,0]
-        self.top_face = self.find_tangent_arc(
+        self.arcs['top_face'] = self.find_tangent_arc(
             start_point.loc['start'],
             face_angle,
-            self.top_edge.points.loc['center'],
-            self.top_edge.radius,
+            self.arcs['top_edge'].points.loc['center'],
+            self.arcs['top_edge'].radius,
             "right"
             )
-        self.top_edge.points.loc['start'] = self.top_ledge.points.loc['end']
-        self.top_edge.points.loc['end'] = self.top_face.points.loc['end']
-        self.top_edge.refresh()
+        self.arcs['top_edge'].points.loc['start'] = self.arcs['top_ledge'].points.loc['end']
+        self.arcs['top_edge'].points.loc['end'] = self.arcs['top_face'].points.loc['end']
+        self.arcs['top_edge'].refresh()
 
-        self.bottom_edge = arc(clockwise_in = False)
-        self.bottom_edge.points.loc['center'] = bottom_edge_position
-        self.bottom_edge.radius = bottom_edge_radius
+        self.arcs['bottom_edge'] = arc(clockwise_in = False)
+        self.arcs['bottom_edge'].points.loc['center'] = bottom_edge_position
+        self.arcs['bottom_edge'].radius = bottom_edge_radius
         
         start_point = pd.DataFrame(index=['start'],columns=['x','y'],dtype=float)
         start_point.loc['start'] = [0,bottom_ledge_start_height]
-        self.bottom_ledge = self.find_tangent_arc(
+        self.arcs['bottom_ledge'] = self.find_tangent_arc(
             start_point.loc['start'],
             bottom_ledge_angle,
-            self.bottom_edge.points.loc['center'],
-            self.bottom_edge.radius,
+            self.arcs['bottom_edge'].points.loc['center'],
+            self.arcs['bottom_edge'].radius,
             "right"
             )
         
         start_point = pd.DataFrame(index=['start'],columns=['x','y'],dtype=float)
         start_point.loc['start'] = [face_thickness,0]
-        self.bottom_face = self.find_tangent_arc(
+        self.arcs['bottom_face'] = self.find_tangent_arc(
             start_point.loc['start'],
             face_angle + np.pi,
-            self.bottom_edge.points.loc['center'],
-            self.bottom_edge.radius,
+            self.arcs['bottom_edge'].points.loc['center'],
+            self.arcs['bottom_edge'].radius,
             "left"
             )
-        self.bottom_edge.points.loc['start'] = self.bottom_ledge.points.loc['end']
-        self.bottom_edge.points.loc['end'] = self.bottom_face.points.loc['end']
-        self.bottom_edge.refresh()
+        self.arcs['bottom_edge'].points.loc['start'] = self.arcs['bottom_ledge'].points.loc['end']
+        self.arcs['bottom_edge'].points.loc['end'] = self.arcs['bottom_face'].points.loc['end']
+        self.arcs['bottom_edge'].refresh()
         
         #self.serial = self.generate_serial()
         self.plot_hold()
 
     def scale_hold(self,scale_factor):
         scaled_hold = copy.deepcopy(self)
-        scaled_hold.top_ledge.points = scaled_hold.top_ledge.points*scale_factor
-        scaled_hold.top_edge.points = scaled_hold.top_ledge.points*scale_factor
-        scaled_hold.top_face.points = scaled_hold.top_ledge.points*scale_factor
+        
+        for key,this_arc in scaled_hold.arcs:
+            scaled_hold.arcs[key].points = this_arc.points*scale_factor
 
-        scaled_hold.bottom_ledge.points = scaled_hold.top_ledge.points*scale_factor
-        scaled_hold.bottom_edge.points = scaled_hold.top_ledge.points*scale_factor
-        scaled_hold.bottom_face.points = scaled_hold.top_ledge.points*scale_factor
         scaled_hold.refresh()
         return scaled_hold
 
@@ -181,25 +185,15 @@ class hold:
         plt.xlim(0, figure_width * width)
         plt.ylim(-(figure_height * height)/2, (figure_height * height)/2)
 
-        self.top_edge.plot_arc(axes)
-        self.top_ledge.plot_arc(axes)
-        self.top_face.plot_arc(axes)
-        self.bottom_edge.plot_arc(axes)
-        self.bottom_ledge.plot_arc(axes)
-        self.bottom_face.plot_arc(axes)
+        for key,this_arc in self.arcs:
+            this_arc.plot_arc(axes)
+            plt.scatter(this_arc.points.loc[:,'x'],this_arc.points.loc[:,'y'])
         
         this_cirlce = plt.Circle((8,16),3.175)
         axes.add_patch(this_cirlce)
         this_cirlce = plt.Circle((8,-16),3.175)
         axes.add_patch(this_cirlce)
 
-        plt.scatter(self.top_ledge.points.loc[:,'x'],self.top_ledge.points.loc[:,'y'])
-        plt.scatter(self.top_edge.points.loc[:,'x'],self.top_edge.points.loc[:,'y'])
-        plt.scatter(self.top_face.points.loc[:,'x'],self.top_face.points.loc[:,'y'])
-        plt.scatter(self.bottom_edge.points.loc[:,'x'],self.bottom_edge.points.loc[:,'y'])
-        plt.scatter(self.bottom_ledge.points.loc[:,'x'],self.bottom_ledge.points.loc[:,'y'])
-        plt.scatter(self.bottom_face.points.loc[:,'x'],self.bottom_face.points.loc[:,'y'])
-        
         # axes.set_xlim(0,40)
         # axes.set_ylim(-40,40)
         # axes.set_aspect('equal')
@@ -208,7 +202,7 @@ class hold:
         fig.savefig('hold.pdf')
         
     def generate_serial(self):
-        self.serial = f'{self.top_edge.points.loc['center']}'
+        self.serial = f'{self.arcs['top_edge'].points.loc['center']}'
 
     def find_tangent_arc(self,start_point,start_angle,goal_arc_center,goal_arc_radius,goal_side):
         sx = start_point['x']
