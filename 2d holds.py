@@ -3,6 +3,7 @@ import random as rnd
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.patches as patch
 #import sympy as sym
 
 # This script generates a 2d profile climbing hold that can be cut from
@@ -20,54 +21,99 @@ class arc:
         self.points.loc['end'] = end_point
         self.points.loc['center'] = center_point
         self.clockwise = clockwise_in
-        self.check_radius()
+        self.refresh()
+    
+    def refresh(self):
+        self.radius = self.check_radius()
+        self.points.loc['midpoint'] = self.find_midpoint()
         
     def check_radius(self):
         if (np.linalg.norm(self.points.loc['start'] 
                            - self.points.loc['center'])
-            != np.linalg.norm(self.points.loc['end'] 
-                              - self.points.loc['center'])):
+            - np.linalg.norm(self.points.loc['end'] 
+                              - self.points.loc['center'])) > 1e-10:
             raise Exception("This is from the 'arc' class: the distance from "
                             "the center to the end and the center to the start"
                             " are different!")
         else:
-            self.radius = np.linalg.norm(self.points.loc['start'] 
+            radius = np.linalg.norm(self.points.loc['start'] 
                                           - self.points.loc['center'])
-
+        return radius
+    
+    def plot_arc(self,axes):
+        start_vector = self.points.loc['start'] - self.points.loc['center']
+        start_angle = np.atan2(start_vector['y'],start_vector['x'])*180.0/np.pi % 360.0
+        end_vector = self.points.loc['end'] - self.points.loc['center']
+        end_angle = np.atan2(end_vector['y'],end_vector['x'])*180.0/np.pi % 360.0
+        if self.clockwise:
+            arc = patch.Arc(self.points.loc['center'],self.radius*2,self.radius*2, theta2 = start_angle, theta1 = end_angle)
+        else:
+            arc = patch.Arc(self.points.loc['center'],self.radius*2,self.radius*2, theta1 = start_angle, theta2 = end_angle)
+            #axes.add_artist(edge_arc)
+        axes.add_patch(arc)
+    
+    def find_midpoint(self):
+        start_vector = self.points.loc['start'] - self.points.loc['center']
+        start_angle = np.atan2(start_vector['y'],start_vector['x'])
+        end_vector = self.points.loc['end'] - self.points.loc['center']
+        end_angle = np.atan2(end_vector['y'],end_vector['x'])
+        #make it so the end angle is always greater than the start to make it
+        #easier to deal with clockwise/counter clockwise stuff
+        if (end_angle < start_angle):
+            end_angle = end_angle + np.pi*2
+        mid_angle = ((start_angle + end_angle) / 2)
+        if self.clockwise:
+            mid_angle = mid_angle + np.pi
+        
+        midpoint = self.points.loc['center'] + [self.radius*np.cos(mid_angle),self.radius*np.sin(mid_angle)]
+        
+        return midpoint
+        
 my_arc = arc([0,0],[2,2],[2,0],True)
 my_arc.points.loc['start','x'] = 0
 my_arc.clockwise
 my_arc.radius
 
 class hold:
+    # class to hold all the information needed to define a hold consisting of
+    #six arcs
     def __init__(self,
                  top_edge_position = [30,30],
                  top_edge_radius = 10,
                  top_ledge_angle = np.pi/10,
-                 top_ledge_start_height = 20,
+                 top_ledge_start_height = 25,
                  bottom_edge_position = [30,-30],
                  bottom_edge_radius = 10,
                  bottom_ledge_angle = -np.pi/10,
-                 bottom_ledge_start_height = -20,
-                 face_angle = np.pi/2+np.pi/10,
-                 face_thickness = 25
+                 bottom_ledge_start_height = -25,
+                 face_angle = np.pi/2,
+                 face_thickness = 30
                  ):
-        self.top_edge = arc()
+        
+        self.top_ledge_angle = top_ledge_angle
+        self.top_ledge_start_height = top_ledge_start_height
+        self.bottom_ledge_angle = bottom_ledge_angle
+        self.bottom_ledge_start_height = bottom_ledge_start_height
+        self.face_angle = face_angle
+        self.face_thickness = face_thickness
+        
+        self.top_edge = arc(clockwise_in = True)
         self.top_edge.points.loc['center'] = top_edge_position
         self.top_edge.radius = top_edge_radius
-        self.top_ledge = arc()
-        self.top_ledge.points.loc['start'] = [0,top_ledge_start_height]
-        self.top_ledge.points.loc['center'],self.top_ledge.points.loc['end'],self.top_ledge.radius = self.find_tangent_arc(
-            self.top_ledge.points.loc['start'],
+        
+        start_point = pd.Series(data = [0,top_ledge_start_height],index=['x','y'],dtype=float)
+        self.top_ledge = self.find_tangent_arc(
+            start_point,
             top_ledge_angle,
             self.top_edge.points.loc['center'],
             self.top_edge.radius,
             "left"
             )
-        self.top_face = arc()
-        self.top_face.points.loc['start'] = [face_thickness,0]
-        self.top_face.points.loc['center'],self.top_face.points.loc['end'],self.top_face.radius  = self.find_tangent_arc(
-            self.top_face.points.loc['start'],
+        
+        start_point = pd.DataFrame(index=['start'],columns=['x','y'],dtype=float)
+        start_point.loc['start'] = [face_thickness,0]
+        self.top_face = self.find_tangent_arc(
+            start_point.loc['start'],
             face_angle,
             self.top_edge.points.loc['center'],
             self.top_edge.radius,
@@ -75,23 +121,26 @@ class hold:
             )
         self.top_edge.points.loc['start'] = self.top_ledge.points.loc['end']
         self.top_edge.points.loc['end'] = self.top_face.points.loc['end']
+        self.top_edge.refresh()
 
-        self.bottom_edge = arc()
+        self.bottom_edge = arc(clockwise_in = False)
         self.bottom_edge.points.loc['center'] = bottom_edge_position
         self.bottom_edge.radius = bottom_edge_radius
-        self.bottom_ledge = arc()
-        self.bottom_ledge.points.loc['start'] = [0,bottom_ledge_start_height]
-        self.bottom_ledge.points.loc['center'],self.bottom_ledge.points.loc['end'],self.bottom_ledge.radius = self.find_tangent_arc(
-            self.bottom_ledge.points.loc['start'],
+        
+        start_point = pd.DataFrame(index=['start'],columns=['x','y'],dtype=float)
+        start_point.loc['start'] = [0,bottom_ledge_start_height]
+        self.bottom_ledge = self.find_tangent_arc(
+            start_point.loc['start'],
             bottom_ledge_angle,
             self.bottom_edge.points.loc['center'],
             self.bottom_edge.radius,
             "right"
             )
-        self.bottom_face = arc()
-        self.bottom_face.points.loc['start'] = [face_thickness,0]
-        self.bottom_face.points.loc['center'],self.bottom_face.points.loc['end'],self.bottom_face.radius  = self.find_tangent_arc(
-            self.bottom_face.points.loc['start'],
+        
+        start_point = pd.DataFrame(index=['start'],columns=['x','y'],dtype=float)
+        start_point.loc['start'] = [face_thickness,0]
+        self.bottom_face = self.find_tangent_arc(
+            start_point.loc['start'],
             face_angle + np.pi,
             self.bottom_edge.points.loc['center'],
             self.bottom_edge.radius,
@@ -99,23 +148,45 @@ class hold:
             )
         self.bottom_edge.points.loc['start'] = self.bottom_ledge.points.loc['end']
         self.bottom_edge.points.loc['end'] = self.bottom_face.points.loc['end']
+        self.bottom_edge.refresh()
         
-        figure, axes = plt.subplots()
-        edge_circle = plt.Circle(self.top_edge.points.loc['center'],self.top_edge.radius, fill = False)
-        axes.add_artist(edge_circle)
-        ledge_circle = plt.Circle(self.top_ledge.points.loc['center'],self.top_ledge.radius, fill = False)
-        axes.add_artist(ledge_circle)
-        ledge_circle = plt.Circle(self.top_face.points.loc['center'],self.top_face.radius, fill = False)
-        axes.add_artist(ledge_circle)
+        #self.serial = self.generate_serial()
+        self.plot_hold()
+
+    def plot_hold(self):
+        # figure settings
+        figure_width = 60 # cm
+        figure_height = 100 # cm
+        left_right_margin = 10 # cm
+        top_bottom_margin = 10 # cm
         
-        #figure, axes = plt.subplots()
-        edge_circle = plt.Circle(self.bottom_edge.points.loc['center'],self.bottom_edge.radius, fill = False)
-        axes.add_artist(edge_circle)
-        ledge_circle = plt.Circle(self.bottom_ledge.points.loc['center'],self.bottom_ledge.radius, fill = False)
-        axes.add_artist(ledge_circle)
-        ledge_circle = plt.Circle(self.bottom_face.points.loc['center'],self.bottom_face.radius, fill = False)
-        axes.add_artist(ledge_circle)
+        # Don't change
+        left   = left_right_margin / figure_width # Percentage from height
+        bottom = top_bottom_margin / figure_height # Percentage from height
+        width  = 1 - left*2
+        height = 1 - bottom*2
+        mm2inch = 1/25.4 # inch per cm
         
+        # specifying the width and the height of the box in inches
+        fig = plt.figure(figsize=(figure_width*mm2inch,figure_height*mm2inch))
+        axes = fig.add_axes((left, bottom, width, height))
+        
+        # limits settings (important)
+        plt.xlim(0, figure_width * width)
+        plt.ylim(-(figure_height * height)/2, (figure_height * height)/2)
+
+        self.top_edge.plot_arc(axes)
+        self.top_ledge.plot_arc(axes)
+        self.top_face.plot_arc(axes)
+        self.bottom_edge.plot_arc(axes)
+        self.bottom_ledge.plot_arc(axes)
+        self.bottom_face.plot_arc(axes)
+        
+        this_cirlce = plt.Circle((8,16),3.175)
+        axes.add_patch(this_cirlce)
+        this_cirlce = plt.Circle((8,-16),3.175)
+        axes.add_patch(this_cirlce)
+
         plt.scatter(self.top_ledge.points.loc[:,'x'],self.top_ledge.points.loc[:,'y'])
         plt.scatter(self.top_edge.points.loc[:,'x'],self.top_edge.points.loc[:,'y'])
         plt.scatter(self.top_face.points.loc[:,'x'],self.top_face.points.loc[:,'y'])
@@ -123,10 +194,16 @@ class hold:
         plt.scatter(self.bottom_ledge.points.loc[:,'x'],self.bottom_ledge.points.loc[:,'y'])
         plt.scatter(self.bottom_face.points.loc[:,'x'],self.bottom_face.points.loc[:,'y'])
         
-        axes.set_xlim(0,100)
-        axes.set_ylim(-100,100)
+        # axes.set_xlim(0,40)
+        # axes.set_ylim(-40,40)
+        # axes.set_aspect('equal')
         plt.show()
+        fig.savefig('hold.png', dpi=1000)
+        fig.savefig('hold.pdf')
         
+    def generate_serial(self):
+        self.serial = f'{self.top_edge.points.loc['center']}'
+
     def find_tangent_arc(self,start_point,start_angle,goal_arc_center,goal_arc_radius,goal_side):
         sx = start_point['x']
         sy = start_point['y']
@@ -145,17 +222,20 @@ class hold:
             r = (a**2 - gr**2 + b**2)/(2 * (b - gr))
         tangent_arc_center =  start_point + r * e_hat
         tangent_point = tangent_arc_center + np.abs(r)*(goal_arc_center-tangent_arc_center)/np.linalg.norm(goal_arc_center - tangent_arc_center)
-
+        
+        if r > 0:
+            clockwise = False
+        else:
+            clockwise = True
+        
+        this_arc = arc(start_point,tangent_point,tangent_arc_center,clockwise)
         print(tangent_arc_center)
         print(r)
-        return tangent_arc_center,tangent_point,r
+        return this_arc
 
 test_hold = hold()
-#TODO:
-    #make it so the ledge arc cant go into negative x
-    #if the edge is too close to the origin and the face and ledge
-    #radii are two large you get problems
-def generate_random_hold(seed = -1,hold_height = 60.0,edge_radius = 0,edge_range = [1,20,3],edge_center = 0,hold_thickness = 0):
+
+def generate_random_hold(seed = -1,hold_height = 40.0,edge_radius = 0,edge_range = [1,20,3],edge_center = 0,hold_thickness = 0):
     if seed == -1:
         rnd.seed()
     
@@ -179,108 +259,8 @@ def generate_random_hold(seed = -1,hold_height = 60.0,edge_radius = 0,edge_range
                        bottom_ledge_angle = bottom_ledge_angle,
                        face_angle = np.pi/2
                        )
-   
-    # # Pick the vertical center of the edge relative to where the ledge meets 
-    # # the wall
-    # lowest_edge_center = max(-(hold_height/2.0-25),-(edge_center_x + edge_radius))
-    # highest_edge_center = min((hold_height/2.0-25-edge_radius),edge_center_x - edge_radius)
-    # if highest_edge_center < lowest_edge_center:
-    #     return pd.DataFrame(),pd.DataFrame(),0
-    #     #raise Exception("edge_radius too big for hold height")
-    # #vec.loc['edge_center','y'] = rnd.uniform(lowest_edge_center,highest_edge_center)
-    # edge_center_y = rnd.uniform(lowest_edge_center,highest_edge_center)
-    
-    # # Pick a ledge radius that is not too small, adjust the lognorm values to tweak
-    # # things to a higher or lower radius or change the variance
-    # ledge_radius = (rnd.lognormvariate(0, 1) 
-    #                 +  np.linalg.norm([edge_center_x,edge_center_y])
-    #                 )
-    
-    
-    concave = rnd.randint(0,1)
 
-    # Offset everything vertically so the highest point is at the top edge of the
-    # blank.
-    if concave:
-        #zero_offset = max(0,vec.loc['edge_center','y'] + edge_radius)
-        zero_offset = max(0,edge_center_y + edge_radius)
-    else:
-        #zero_offset = max(0,vec.loc['edge_center','y'] + edge_radius,vec.loc['ledge_center','y'] + ledge_radius)
-        zero_offset = max(0,arcs.loc['ledge','center_y'] + edge_radius,arcs.loc['ledge','center_y'] + ledge_radius)
-    #vec['y'] = vec['y'] - zero_offset + hold_height/2
-    arcs[arcs.filter(like='_y').columns] = arcs.filter(like='_y') - zero_offset + hold_height/2
-
-    # Start calculating the arc that forms the face of the hold
-    face_offset = hold_thickness - arcs.loc['edge','center_x']
-    # Note that a negative radius here indicates that the suface is convex
-    face_radius = ((edge_radius**2 - face_offset**2 - arcs.loc['edge','center_y']**2)
-                   /(2*(face_offset-edge_radius))
-                   )
-    #vec.loc['face_center'] = [hold_thickness+face_radius,0]
-    arcs.loc['face',['center_x','center_y']] = [hold_thickness+face_radius,0]
-    
-    #Now that we have the location of the tangent circles that will make our
-    # hold, generate the actual arcs:
-    arcs.loc['ledge','radius'] = ledge_radius
-    arcs.loc['edge','radius'] = edge_radius
-    arcs.loc['face','radius'] = face_radius
-
-    #arcs.loc['ledge',['center_x','center_y']] = vec.loc['ledge_center'].values
-    #arcs.loc['edge',['center_x','center_y']] = vec.loc['edge_center'].values
-    #arcs.loc['face',['center_x','center_y']] = vec.loc['face_center'].values
-
-    # Find the start of the ledge arc
-    #arcs.loc['ledge',['start_x','start_y']] = vec.loc['top_corner'].values
-    
-    # Find the end of the ledge arc
-    r = arcs.loc['edge',['center_x','center_y']] - arcs.loc['ledge',['center_x','center_y']]
-    arcs.loc['ledge',['end_x','end_y']] = ( arcs.loc['ledge',['center_x','center_y']] 
-                                               + r/np.linalg.norm(r)*ledge_radius
-                                               ).values
-    
-    # Find a point that is around the middle of the ledge arc
-    r = (arcs.loc['ledge',['end_x','end_y']] + arcs.loc['ledge',['end_x','end_y']])/2  - arcs.loc['ledge',['center_x','center_y']].values
-    arcs.loc['ledge',['mid_x','mid_y']] = ( arcs.loc['ledge',['center_x','center_y']].values
-                                           + r/np.linalg.norm(r)*ledge_radius
-                                           ).values
-    
-    # Find the end of the face arc
-    arcs.loc['face',['end_x','end_y']] = [hold_thickness,0]
-    
-    # Find the start of the face arc
-    r = arcs.loc['edge',['center_x','center_y']]-arcs.loc['face',['center_x','center_y']]
-    arcs.loc['face',['start_x','start_y']] = ( arcs.loc['face',['center_x','center_y']]
-                                               + r/np.linalg.norm(r)*abs(face_radius)
-                                               ).values
-    
-    # Check that the face and ledge arcs don't reach around and overlap
-    if arcs.loc['face','start_x'] < arcs.loc['ledge','end_x']:
-        return pd.DataFrame(),pd.DataFrame(),0
-    
-    # Find a point that is around the middle of the face arc
-    r = (arcs.loc['face',['start_x','start_y']].values + arcs.loc['face',['end_x','end_y']].values)/2 - arcs.loc['face',['center_x','center_y']]
-    arcs.loc['face',['mid_x','mid_y']] = ( arcs.loc['face',['center_x','center_y']]
-                                           + r/np.linalg.norm(r)*abs(face_radius)
-                                           ).values
-    
-    # The start of the edge arc is the end of the ledge arc
-    arcs.loc['edge',['start_x','start_y']] = arcs.loc['ledge',['end_x','end_y']].values
-    
-    # The end of the edge arc is the start of the face arc
-    arcs.loc['edge',['end_x','end_y']] = arcs.loc['face',['start_x','start_y']].values
-    
-    # Find a point around the middle of the edge arc
-    # This doesn't work if the arc is more than 180 degrees, should do it with
-    # angles instead
-    r = (arcs.loc['edge',['start_x','start_y']].values + arcs.loc['edge',['end_x','end_y']].values)/2 - vec.loc['edge_center'] 
-    arcs.loc['edge',['mid_x','mid_y']] = ( arcs.loc['edge',['center_x','center_y']] 
-                                           + r/np.linalg.norm(r)*edge_radius
-                                           ).values
-    if arcs.loc['edge',['mid_x','mid_y']].sum() < arcs.loc['edge',['center_x','center_y']].sum():
-        arcs.loc['edge',['mid_x','mid_y']] = ( arcs.loc['face',['center_x','center_y']] 
-                                               - r/np.linalg.norm(r)*edge_radius
-                                               ).values
-    return arcs,vec,concave
+    return random_hold
 
 def generate_gcode(arcs_1,arcs_2,concave_1,concave_2,o_code_number):
     arcs_1 = arcs_1/25.4
@@ -347,37 +327,27 @@ def save_gcode():
 # Generates two half hold profiles with the same thickness, mirrors one vertically then sticks them together
 # Makes a cadquery shape by extruding the hold profile and cutting the bolt hole away
 def generate_hold(o_code_number,seed = -1,):
-    if seed == -1:
-        rnd.seed()
+    for i in range(0,10):
+        if seed == -1:
+            rnd.seed()
+        this_hold = generate_random_hold(seed,hold_height=40,hold_thickness=20)
+
+    # result = (
+    #     cq.Workplane("right")
+    #     .lineTo(this_hold.top_ledge.points.loc['start'].values)
+    #     .threePointArc(this_hold.top_ledge.points.loc['midpoint'].values,this_hold.top_ledge.points.loc['end'].values)
+    #     .threePointArc(arcs_1.loc['edge',['mid_x','mid_y']].values, arcs_1.loc['edge',['end_x','end_y']].values)
+    #     .threePointArc(arcs_1.loc['face',['mid_x','mid_y']].values, arcs_1.loc['face',['end_x','end_y']].values)
+    #     .threePointArc(arcs_2.loc['face',['mid_x','mid_y']].values, arcs_2.loc['face',['start_x','start_y']].values)
+    #     .threePointArc(arcs_2.loc['edge',['mid_x','mid_y']].values, arcs_2.loc['edge',['start_x','start_y']].values)
+    #     .threePointArc(arcs_2.loc['ledge',['mid_x','mid_y']].values, arcs_2.loc['ledge',['start_x','start_y']].values)
+    #     .close()
+    #     .extrude(75)
+    #     .translate((-37.5,0,0))
+    # )
     
-    this_hold = generate_random_hold(seed,hold_height=62,hold_thickness=20)
-    # arcs_1 = pd.DataFrame()
-    # while arcs_1.empty:
-    #     arcs_1,vec_1,concave_1 = create_half_hold(seed = rnd.randint(0, 99999))
-    
-    # arcs_2 = pd.DataFrame()
-    # while arcs_2.empty:
-    #     arcs_2,vec_2,concave_2 = create_half_hold(seed = rnd.randint(0, 99999),hold_thickness = arcs_1.loc['face','end_x'])
-    
-    # arcs_2[['start_y','mid_y','end_y','center_y']] = -arcs_2[['start_y','mid_y','end_y','center_y']]
-    # vec_2['y'] = -vec_2['y']
-    hold = hold()
-    result = (
-        cq.Workplane("right")
-        .lineTo(arcs_1.loc['ledge',['start_x','start_y']].values,vec_1.loc['top_corner','y'])
-        .threePointArc(arcs_1.loc['ledge',['mid_x','mid_y']].values, arcs_1.loc['ledge',['end_x','end_y']].values)
-        .threePointArc(arcs_1.loc['edge',['mid_x','mid_y']].values, arcs_1.loc['edge',['end_x','end_y']].values)
-        .threePointArc(arcs_1.loc['face',['mid_x','mid_y']].values, arcs_1.loc['face',['end_x','end_y']].values)
-        .threePointArc(arcs_2.loc['face',['mid_x','mid_y']].values, arcs_2.loc['face',['start_x','start_y']].values)
-        .threePointArc(arcs_2.loc['edge',['mid_x','mid_y']].values, arcs_2.loc['edge',['start_x','start_y']].values)
-        .threePointArc(arcs_2.loc['ledge',['mid_x','mid_y']].values, arcs_2.loc['ledge',['start_x','start_y']].values)
-        .close()
-        .extrude(75)
-        .translate((-37.5,0,0))
-    )
-    
-    bolt_hole = cq.Workplane("right").polyline([(0,0),(200,0),(200,10),(18,10),(18,5),(0,5)]).close().revolve(angleDegrees=360, axisStart=(0, 0, 0), axisEnd=(1, 0, 0))
-    result = result.cut(bolt_hole)
+    # bolt_hole = cq.Workplane("right").polyline([(0,0),(200,0),(200,10),(18,10),(18,5),(0,5)]).close().revolve(angleDegrees=360, axisStart=(0, 0, 0), axisEnd=(1, 0, 0))
+    # result = result.cut(bolt_hole)
     
     # result2 = (
     #     cq.Workplane("top")
@@ -399,7 +369,7 @@ def generate_hold(o_code_number,seed = -1,):
     
     #result = result2.cut(bolt_hole)
     
-    contour_g_code = generate_gcode(arcs_1, arcs_2, concave_1, concave_2,o_code_number)
+    contour_g_code = generate_gcode(this_hold,o_code_number)
     return result,contour_g_code
 
 # G-Code Preamble String
