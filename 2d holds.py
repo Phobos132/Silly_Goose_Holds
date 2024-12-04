@@ -78,13 +78,7 @@ my_arc.radius
 class hold:
     # class to hold all the information needed to define a hold consisting of
     #six arcs
-    arcs = {'top_ledge':arc(),
-                'top_edge':arc(),
-                'top_face':arc(),
-                'bottom_face':arc(),
-                'bottom_edge':arc(),
-                'bottom_ledge':arc()
-                }
+    
     def __init__(self,
                  top_edge_position = [30,30],
                  top_edge_radius = 10,
@@ -98,6 +92,13 @@ class hold:
                  face_thickness = 30
                  ):
         
+        self.arcs = {'top_ledge':arc(),
+                    'top_edge':arc(),
+                    'top_face':arc(),
+                    'bottom_face':arc(),
+                    'bottom_edge':arc(),
+                    'bottom_ledge':arc()
+                    }
         
         self.arcs['top_edge'] = arc(clockwise_in = True)
         self.arcs['top_edge'].points.loc['center'] = top_edge_position
@@ -132,7 +133,7 @@ class hold:
         self.arcs['top_edge'].points.loc['end'] = self.arcs['top_face'].points.loc['start']
         self.arcs['top_edge'].refresh()
 
-        self.arcs['bottom_edge'] = arc(clockwise_in = False)
+        self.arcs['bottom_edge'] = arc(clockwise_in = True)
         self.arcs['bottom_edge'].points.loc['center'] = bottom_edge_position
         self.arcs['bottom_edge'].radius = bottom_edge_radius
         
@@ -199,7 +200,7 @@ class hold:
         plt.xlim(0, figure_width * width)
         plt.ylim(-(figure_height * height)/2, (figure_height * height)/2)
 
-        for key,this_arc in self.arcs:
+        for key,this_arc in self.arcs.items():
             this_arc.plot_arc(axes)
             plt.scatter(this_arc.points.loc[:,'x'],this_arc.points.loc[:,'y'])
         
@@ -215,8 +216,8 @@ class hold:
         fig.savefig('hold.png', dpi=1000)
         fig.savefig('hold.pdf')
         
-    def generate_serial(self):
-        self.serial = f'{self.arcs['top_edge'].points.loc['center']}'
+    #def generate_serial(self):
+        #self.serial = f'{self.arcs['top_edge'].points.loc['center']}'
 
     def find_tangent_arc(self,start_point,start_angle,goal_arc_center,goal_arc_radius,goal_side):
         sx = start_point['x']
