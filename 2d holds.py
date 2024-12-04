@@ -1,4 +1,4 @@
-#import cadquery as cq
+import cadquery as cq
 import random as rnd
 import numpy as np
 import pandas as pd
@@ -175,8 +175,9 @@ class hold_profile:
         
         for key,this_arc in scaled_hold.arcs.items():
             scaled_hold.arcs[key].points = this_arc.points*scale_factor
+            scaled_hold.arcs[key].refresh()
 
-        scaled_hold.refresh()
+        #scaled_hold.refresh()
         return scaled_hold
 
     def plot(self):
@@ -255,29 +256,35 @@ class hold_profile:
         previous_arc = []
         #for key,arc in self.arcs.items():
 
-def generate_random_hold_profile(seed = -1,hold_height = 40.0,edge_radius = 0,edge_range = [1,20,3],edge_center = 0,hold_thickness = 0):
+def generate_random_hold_profile(seed = -1,hold_height = 40.0,edge_radius = 0,edge_range = [1,3],edge_center = 0,hold_thickness = 0,max_thickness = 38):
     if seed == -1:
         rnd.seed()
     
     #random_hold_profile = hold_profile()
     # Pick the parameters that define the hold
-    hold_thickness = rnd.uniform(20,38)
-    top_edge_radius = rnd.triangular(edge_range[0],edge_range[1],edge_range[2])
-    top_edge_center_x = rnd.uniform(max(top_edge_radius,8),min(38-top_edge_radius,top_edge_radius*8))
-    top_edge_center_y = rnd.uniform(10,hold_height - top_edge_radius)
+    hold_thickness = rnd.uniform(20,max_thickness)
+    top_edge_center_x = rnd.uniform(8,max_thickness-2)
+    min_distance_from_edge = max_thickness/2-abs(max_thickness/2-top_edge_center_x)
+    top_edge_radius = rnd.uniform(edge_range[0],min_distance_from_edge)
+    top_edge_center_y = rnd.uniform(20,hold_height - top_edge_radius)
+    top_ledge_start_height = rnd.uniform(max(top_edge_center_y-top_edge_center_x,20),min(top_edge_center_y+top_edge_center_x,hold_height))
+    
     top_ledge_angle = rnd.triangular(-np.pi/8,0,np.pi/8)
-    bottom_edge_radius = rnd.triangular(edge_range[0],edge_range[1],edge_range[2])
-    bottom_edge_center_x = rnd.uniform(max(bottom_edge_radius,8),min(38-bottom_edge_radius,bottom_edge_radius*8))
-    bottom_edge_center_y = -rnd.uniform(10,hold_height - bottom_edge_radius)
+    bottom_edge_center_x = rnd.uniform(8,max_thickness)
+    bottom_edge_radius = rnd.uniform(edge_range[0],max_thickness/2-abs(max_thickness/2-bottom_edge_center_x))
+    bottom_edge_center_y = rnd.uniform(-20,-(hold_height - bottom_edge_radius))
     bottom_ledge_angle = rnd.triangular(-np.pi/8,0,np.pi/8)
+    bottom_ledge_start_height = rnd.uniform(max(bottom_edge_center_y - bottom_edge_center_x,-hold_height),min(bottom_edge_center_y + bottom_edge_center_x,-20))
     
     random_hold_profile = hold_profile(top_edge_position = [top_edge_center_x,top_edge_center_y],
                        top_edge_radius = top_edge_radius,
                        top_ledge_angle = top_ledge_angle,
+                       top_ledge_start_height = top_ledge_start_height,
                        bottom_edge_position = [bottom_edge_center_x,bottom_edge_center_y],
                        bottom_edge_radius = bottom_edge_radius,
                        bottom_ledge_angle = bottom_ledge_angle,
-                       face_angle = np.pi/2
+                       face_angle = np.pi/2,
+                       bottom_ledge_start_height = bottom_ledge_start_height
                        )
 
     return random_hold_profile
@@ -337,30 +344,21 @@ def save_gcode():
     return
 
 # Function to generate a full hold
-# Generates two half hold profiles with the same thickness, mirrors one vertically then sticks them together
 # Makes a cadquery shape by extruding the hold profile and cutting the bolt hole away
 def generate_hold(o_code_number,seed = -1,):
-    for i in range(0,10):
-        if seed == -1:
-            rnd.seed()
-        this_hold = generate_random_hold_profile(seed,hold_height=40,hold_thickness=20)
-
-    # result = (
-    #     cq.Workplane("right")
-    #     .lineTo(this_hold.top_ledge.points.loc['start'].values)
-    #     .threePointArc(this_hold.top_ledge.points.loc['midpoint'].values,this_hold.top_ledge.points.loc['end'].values)
-    #     .threePointArc(arcs_1.loc['edge',['mid_x','mid_y']].values, arcs_1.loc['edge',['end_x','end_y']].values)
-    #     .threePointArc(arcs_1.loc['face',['mid_x','mid_y']].values, arcs_1.loc['face',['end_x','end_y']].values)
-    #     .threePointArc(arcs_2.loc['face',['mid_x','mid_y']].values, arcs_2.loc['face',['start_x','start_y']].values)
-    #     .threePointArc(arcs_2.loc['edge',['mid_x','mid_y']].values, arcs_2.loc['edge',['start_x','start_y']].values)
-    #     .threePointArc(arcs_2.loc['ledge',['mid_x','mid_y']].values, arcs_2.loc['ledge',['start_x','start_y']].values)
-    #     .close()
-    #     .extrude(75)
-    #     .translate((-37.5,0,0))
-    # )
+    if seed == -1:
+        rnd.seed()
+    this_hold = generate_random_hold_profile(seed,hold_height=40,hold_thickness=20)
+    start_point = this_hold.arcs.iloc[0].points.loc['start'].values
+    result = cq.Workplane("right").lineTo(start_point[0],start_point[1])
     
-    # bolt_hole = cq.Workplane("right").polyline([(0,0),(200,0),(200,10),(18,10),(18,5),(0,5)]).close().revolve(angleDegrees=360, axisStart=(0, 0, 0), axisEnd=(1, 0, 0))
-    # result = result.cut(bolt_hole)
+    for key,this_arc in this_hold.arcs.items():
+        result = result.threePointArc(this_arc.points.loc['midpoint'].values,this_arc.points.loc['end'].values)
+    
+    result = result.close().extrude(75).translate((-37.5,0,0))
+
+    bolt_hole = cq.Workplane("right").polyline([(0,0),(200,0),(200,10),(18,10),(18,5),(0,5)]).close().revolve(angleDegrees=360, axisStart=(0, 0, 0), axisEnd=(1, 0, 0))
+    result = result.cut(bolt_hole)
     
     # result2 = (
     #     cq.Workplane("top")
@@ -382,7 +380,7 @@ def generate_hold(o_code_number,seed = -1,):
     
     #result = result2.cut(bolt_hole)
     
-    contour_g_code = generate_gcode(this_hold,o_code_number)
+    contour_g_code = "0"#generate_gcode(this_hold,o_code_number)
     return result,contour_g_code
 
 # G-Code Preamble String
@@ -420,9 +418,9 @@ g_code_contouring_preamble = fr'''
 # Generate a whole bunch of holds and put them into an array
 #shapes_i = []
 #test = cq.Workplane()
-holds_to_generate = 1
+holds_to_generate = 8
 holds_generated = 0
-#test = cq.Assembly()
+test = cq.Assembly()
 contour_g_codes = []
 # Generate 10 STEP files
 for i in range(holds_to_generate):
