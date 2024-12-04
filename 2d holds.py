@@ -75,9 +75,10 @@ my_arc.points.loc['start','x'] = 0
 my_arc.clockwise
 my_arc.radius
 
-class hold:
+class hold_profile:
     # class to hold all the information needed to define a hold consisting of
-    #six arcs
+    #six arcs in a dictionary
+    # should also have a serial number made from the values in the arcs
     
     def __init__(self,
                  top_edge_position = [30,30],
@@ -92,13 +93,14 @@ class hold:
                  face_thickness = 30
                  ):
         
-        self.arcs = {'top_ledge':arc(),
-                    'top_edge':arc(),
-                    'top_face':arc(),
-                    'bottom_face':arc(),
-                    'bottom_edge':arc(),
-                    'bottom_ledge':arc()
-                    }
+        self.arcs = pd.Series(index = 
+                              'top_ledge',
+                                'top_edge',
+                                'top_face',
+                                'bottom_face',
+                                'bottom_edge',
+                                'bottom_ledge'
+                                }
         
         self.arcs['top_edge'] = arc(clockwise_in = True)
         self.arcs['top_edge'].points.loc['center'] = top_edge_position
@@ -113,10 +115,9 @@ class hold:
             "left"
             )
         
-        start_point = pd.DataFrame(index=['start'],columns=['x','y'],dtype=float)
-        start_point.loc['start'] = [face_thickness,0]
+        start_point = pd.Series(data = [face_thickness,0],index=['x','y'],dtype=float)
         temp_arc = self.find_tangent_arc(
-            start_point.loc['start'],
+            start_point,
             face_angle,
             self.arcs['top_edge'].points.loc['center'],
             self.arcs['top_edge'].radius,
@@ -167,9 +168,9 @@ class hold:
         self.arcs['bottom_edge'].refresh()
         
         #self.serial = self.generate_serial()
-        self.plot_hold()
+        self.plot_hold_profile()
 
-    def scale_hold(self,scale_factor):
+    def scale_hold_profile(self,scale_factor):
         scaled_hold = copy.deepcopy(self)
         
         for key,this_arc in scaled_hold.arcs:
@@ -178,7 +179,7 @@ class hold:
         scaled_hold.refresh()
         return scaled_hold
 
-    def plot_hold(self):
+    def plot_hold_profile(self):
         # figure settings
         figure_width = 60 # cm
         figure_height = 100 # cm
@@ -212,9 +213,11 @@ class hold:
         # axes.set_xlim(0,40)
         # axes.set_ylim(-40,40)
         # axes.set_aspect('equal')
+        
         plt.show()
         fig.savefig('hold.png', dpi=1000)
         fig.savefig('hold.pdf')
+        return fig,axis
         
     #def generate_serial(self):
         #self.serial = f'{self.arcs['top_edge'].points.loc['center']}'
@@ -247,14 +250,17 @@ class hold:
         print(tangent_arc_center)
         print(r)
         return this_arc
+    
+    def check_consistency(self):
+        previous_arc = []
+        for key,arc in self.arcs.items():
+test_hold_profile = hold_profile()
 
-test_hold = hold()
-
-def generate_random_hold(seed = -1,hold_height = 40.0,edge_radius = 0,edge_range = [1,20,3],edge_center = 0,hold_thickness = 0):
+def generate_random_hold_profile(seed = -1,hold_height = 40.0,edge_radius = 0,edge_range = [1,20,3],edge_center = 0,hold_thickness = 0):
     if seed == -1:
         rnd.seed()
     
-    random_hold = hold()
+    #random_hold_profile = hold_profile()
     # Pick the parameters that define the hold
     hold_thickness = rnd.uniform(20,38)
     top_edge_radius = rnd.triangular(edge_range[0],edge_range[1],edge_range[2])
@@ -266,7 +272,7 @@ def generate_random_hold(seed = -1,hold_height = 40.0,edge_radius = 0,edge_range
     bottom_edge_center_y = -rnd.uniform(10,hold_height - bottom_edge_radius)
     bottom_ledge_angle = rnd.triangular(-np.pi/8,0,np.pi/8)
     
-    random_hold = hold(top_edge_position = [top_edge_center_x,top_edge_center_y],
+    random_hold_profile = hold_profile(top_edge_position = [top_edge_center_x,top_edge_center_y],
                        top_edge_radius = top_edge_radius,
                        top_ledge_angle = top_ledge_angle,
                        bottom_edge_position = [bottom_edge_center_x,bottom_edge_center_y],
@@ -275,7 +281,7 @@ def generate_random_hold(seed = -1,hold_height = 40.0,edge_radius = 0,edge_range
                        face_angle = np.pi/2
                        )
 
-    return random_hold
+    return random_hold_profile
 
 def generate_gcode(hold):
     arcs_1 = arcs_1/25.4
