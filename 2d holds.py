@@ -93,14 +93,14 @@ class hold_profile:
                  face_thickness = 30
                  ):
         
-        self.arcs = pd.Series(index = 
+        self.arcs = pd.Series(index = [
                               'top_ledge',
                                 'top_edge',
                                 'top_face',
                                 'bottom_face',
                                 'bottom_edge',
                                 'bottom_ledge'
-                                }
+                                ])
         
         self.arcs['top_edge'] = arc(clockwise_in = True)
         self.arcs['top_edge'].points.loc['center'] = top_edge_position
@@ -168,18 +168,18 @@ class hold_profile:
         self.arcs['bottom_edge'].refresh()
         
         #self.serial = self.generate_serial()
-        self.plot_hold_profile()
+        self.plot()
 
-    def scale_hold_profile(self,scale_factor):
+    def scale(self,scale_factor):
         scaled_hold = copy.deepcopy(self)
         
-        for key,this_arc in scaled_hold.arcs:
+        for key,this_arc in scaled_hold.arcs.items():
             scaled_hold.arcs[key].points = this_arc.points*scale_factor
 
         scaled_hold.refresh()
         return scaled_hold
 
-    def plot_hold_profile(self):
+    def plot(self):
         # figure settings
         figure_width = 60 # cm
         figure_height = 100 # cm
@@ -217,7 +217,7 @@ class hold_profile:
         plt.show()
         fig.savefig('hold.png', dpi=1000)
         fig.savefig('hold.pdf')
-        return fig,axis
+        return fig,axes
         
     #def generate_serial(self):
         #self.serial = f'{self.arcs['top_edge'].points.loc['center']}'
@@ -253,8 +253,7 @@ class hold_profile:
     
     def check_consistency(self):
         previous_arc = []
-        for key,arc in self.arcs.items():
-test_hold_profile = hold_profile()
+        #for key,arc in self.arcs.items():
 
 def generate_random_hold_profile(seed = -1,hold_height = 40.0,edge_radius = 0,edge_range = [1,20,3],edge_center = 0,hold_thickness = 0):
     if seed == -1:
@@ -283,29 +282,22 @@ def generate_random_hold_profile(seed = -1,hold_height = 40.0,edge_radius = 0,ed
 
     return random_hold_profile
 
-def generate_gcode(hold):
-    arcs_1 = arcs_1/25.4
-    arcs_2 = arcs_2/25.4
+def generate_gcode(hold,o_code_number):
+    scaled_hold = hold.scale(1/25.4)
     
-    if concave_1:
-        concave_edge_1 = 'G2'
-    else:
-        concave_edge_1 = 'G3'
-        
-    if concave_2:
-        concave_edge_2 = 'G2'
-    else:
-        concave_edge_2 = 'G3'
-        
-    if arcs_1.loc['face','radius'] > 0:
-        concave_face_1 = 'G2'
-    else:
-        concave_face_1 = 'G3'
-        
-    if arcs_2.loc['face','radius'] > 0:
-        concave_face_2 = 'G2'
-    else:
-        concave_face_2 = 'G3'
+    clockwise_dict = {True:'G2',False:'G3'}
+    
+    preamle = fr'''
+o{o_code_number} sub (#1 = z depth-must be negative, #2 = number of steps, #3 = feedrate, #4 = x-offset #5 = y-offset, #6 = rotation)
+    G52 X#4 Y#5
+    G0 X0.0 Y0.0 S2000 M3
+    G0 Z1.0
+    G42
+    G1 X{scaled_hold.arcs['top_ledge'].points['start','x']:.4f} Y{scaled_hold.arcs['top_ledge'].points['start','y']:.4f} Z0.1 F#3
+    #14 = [#1/#2]
+    #15 = #14
+    o{o_code_number+500} while [#15 GE #1]
+'''
         
     with open(r'NC Files\Output.ngc', 'w') as text_file:
         text_file.write(
@@ -351,7 +343,7 @@ def generate_hold(o_code_number,seed = -1,):
     for i in range(0,10):
         if seed == -1:
             rnd.seed()
-        this_hold = generate_random_hold(seed,hold_height=40,hold_thickness=20)
+        this_hold = generate_random_hold_profile(seed,hold_height=40,hold_thickness=20)
 
     # result = (
     #     cq.Workplane("right")
