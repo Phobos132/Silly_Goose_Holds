@@ -305,7 +305,9 @@ o{o_code_number} sub (#1 = z depth-must be negative, #2 = number of steps, #3 = 
     #15 = #14
     o{o_code_number+500} while [#15 GE #1]
 '''
-        
+    
+    for key,this_arc in this_hold.arcs.items():
+        this_command = r'{clockwise_dict[this_arc.clockwise]:.4f} X{this_arc.points.loc['end','x']:.4f} Y{this_arc.points.loc['end','y']} I{this_arc.points.loc['center','x']} J{this_arc.points.loc['center','y']}'        
     with open(r'NC Files\Output.ngc', 'w') as text_file:
         text_file.write(
 fr'''
