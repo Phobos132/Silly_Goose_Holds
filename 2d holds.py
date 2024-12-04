@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as patch
+import copy
 #import sympy as sym
 
 # This script generates a 2d profile climbing hold that can be cut from
@@ -77,7 +78,7 @@ my_arc.radius
 class hold:
     # class to hold all the information needed to define a hold consisting of
     #six arcs
-    self.arcs = {'top_ledge':arc(),
+    arcs = {'top_ledge':arc(),
                 'top_edge':arc(),
                 'top_face':arc(),
                 'bottom_face':arc(),
@@ -113,15 +114,22 @@ class hold:
         
         start_point = pd.DataFrame(index=['start'],columns=['x','y'],dtype=float)
         start_point.loc['start'] = [face_thickness,0]
-        self.arcs['top_face'] = self.find_tangent_arc(
+        temp_arc = self.find_tangent_arc(
             start_point.loc['start'],
             face_angle,
             self.arcs['top_edge'].points.loc['center'],
             self.arcs['top_edge'].radius,
             "right"
             )
+        # need to flip this arc around
+        self.arcs['top_face'] = copy.deepcopy(temp_arc)
+        self.arcs['top_face'].points.loc['start'] = temp_arc.points.loc['end']
+        self.arcs['top_face'].points.loc['end'] = temp_arc.points.loc['start']
+        self.arcs['top_face'].clockwise = not temp_arc.clockwise
+        self.arcs['top_face'].refresh()
+        
         self.arcs['top_edge'].points.loc['start'] = self.arcs['top_ledge'].points.loc['end']
-        self.arcs['top_edge'].points.loc['end'] = self.arcs['top_face'].points.loc['end']
+        self.arcs['top_edge'].points.loc['end'] = self.arcs['top_face'].points.loc['start']
         self.arcs['top_edge'].refresh()
 
         self.arcs['bottom_edge'] = arc(clockwise_in = False)
@@ -137,9 +145,10 @@ class hold:
             self.arcs['bottom_edge'].radius,
             "right"
             )
-        self.arcs['bottom_ledge'] = copy.deep_copy(temp_arc)
-        self.arcs['bottom_ledge'].points['start'] = temp_arc.points['end']
-        self.arcs['bottom_ledge'].points['end'] = temp_arc.points['start']
+        self.arcs['bottom_ledge'] = copy.deepcopy(temp_arc)
+        self.arcs['bottom_ledge'].points.loc['start'] = temp_arc.points.loc['end']
+        self.arcs['bottom_ledge'].points.loc['end'] = temp_arc.points.loc['start']
+        self.arcs['bottom_ledge'].clockwise = not temp_arc.clockwise
         self.arcs['bottom_ledge'].refresh()
         
         start_point = pd.DataFrame(index=['start'],columns=['x','y'],dtype=float)
@@ -151,10 +160,6 @@ class hold:
             self.arcs['bottom_edge'].radius,
             "left"
             )
-        self.arcs['bottom_face'] = copy.deep_copy(temp_arc)
-        self.arcs['bottom_face'].points['start'] = temp_arc.points['end']
-        self.arcs['bottom_face'].points['end'] = temp_arc.points['start']
-        self.arcs['bottom_face'].refresh()
 
         self.arcs['bottom_edge'].points.loc['start'] = self.arcs['bottom_face'].points.loc['end']
         self.arcs['bottom_edge'].points.loc['end'] = self.arcs['bottom_ledge'].points.loc['start']
