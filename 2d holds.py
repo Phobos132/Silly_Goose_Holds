@@ -255,7 +255,11 @@ class hold_profile:
     def check_consistency(self):
         previous_arc = []
         #for key,arc in self.arcs.items():
-
+            
+def generate_smaller_hold_profile(hold,face_shift):
+    ledge_edge_distance = np.norm2(hold.arcs['edge'].points.loc['center']
+                              - hold.arcs['top_ledge'].points.loc['center'])
+    
 def generate_random_hold_profile(seed = -1,hold_height = 40.0,edge_radius = 0,edge_range = [1,3],edge_center = 0,hold_thickness = 0,max_thickness = 38):
     if seed == -1:
         rnd.seed()
