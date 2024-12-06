@@ -41,11 +41,20 @@ class arc:
                                           - self.points.loc['center'])
         return radius
     
+    def get_tangent_angle(self, point = 'start'):
+        vector = self.points.loc[point] - self.points.loc['center']
+        vector_angle = np.arctan2(vector['y'],vector['x'])
+        if self.clockwise:
+            tangent_angle = vector_angle - np.pi/2
+        else:
+            tangent_angle = vector_angle + np.pi/2
+        return tangent_angle
+    
     def plot_arc(self,axes):
         start_vector = self.points.loc['start'] - self.points.loc['center']
-        start_angle = np.atan2(start_vector['y'],start_vector['x'])*180.0/np.pi % 360.0
+        start_angle = np.arctan2(start_vector['y'],start_vector['x'])*180.0/np.pi % 360.0
         end_vector = self.points.loc['end'] - self.points.loc['center']
-        end_angle = np.atan2(end_vector['y'],end_vector['x'])*180.0/np.pi % 360.0
+        end_angle = np.arctan2(end_vector['y'],end_vector['x'])*180.0/np.pi % 360.0
         if self.clockwise:
             arc = patch.Arc(self.points.loc['center'],self.radius*2,self.radius*2, theta2 = start_angle, theta1 = end_angle)
         else:
@@ -55,9 +64,9 @@ class arc:
     
     def find_midpoint(self):
         start_vector = self.points.loc['start'] - self.points.loc['center']
-        start_angle = np.atan2(start_vector['y'],start_vector['x'])
+        start_angle = np.arctan2(start_vector['y'],start_vector['x'])
         end_vector = self.points.loc['end'] - self.points.loc['center']
-        end_angle = np.atan2(end_vector['y'],end_vector['x'])
+        end_angle = np.arctan2(end_vector['y'],end_vector['x'])
         #make it so the end angle is always greater than the start to make it
         #easier to deal with clockwise/counter clockwise stuff
         if (end_angle < start_angle):
@@ -257,9 +266,24 @@ class hold_profile:
         #for key,arc in self.arcs.items():
             
 def generate_smaller_hold_profile(hold,face_shift):
-    ledge_edge_distance = np.norm2(hold.arcs['edge'].points.loc['center']
+    ledge_edge_distance = np.linalg.norm(hold.arcs['top_edge'].points.loc['center']
                               - hold.arcs['top_ledge'].points.loc['center'])
-    
+    shift_angle = face_shift/ledge_edge_distance
+    new_top_edge_position = [hold.arcs['top_edge'].points.loc['center','x']*np.cos(shift_angle) - hold.arcs['top_edge'].points.loc['center','x']*np.sin(shift_angle),
+                         hold.arcs['top_edge'].points.loc['center','x']*np.sin(shift_angle) + hold.arcs['top_edge'].points.loc['center','x']*np.cos(shift_angle)]
+    +
+    smaller_profile = hold_profile(top_edge_position = new_top_edge_position,
+                           top_edge_radius = hold.arcs['top_edge'].radius,
+                           top_ledge_angle = hold.arcs['top_ledge'].get_tangent_angle('start'),
+                           top_ledge_start_height = hold.arcs['top_ledge'].points.loc['start','y'],
+                           bottom_edge_position = [30,-30],
+                           bottom_edge_radius = 10,
+                           bottom_ledge_angle = -np.pi/10,
+                           bottom_ledge_start_height = -25,
+                           face_angle = np.pi/2,
+                           face_thickness = 30
+                           )
+    smaller_profile.plot()
 def generate_random_hold_profile(seed = -1,hold_height = 40.0,edge_radius = 0,edge_range = [1,3],edge_center = 0,hold_thickness = 0,max_thickness = 38):
     if seed == -1:
         rnd.seed()
@@ -310,8 +334,8 @@ o{o_code_number} sub (#1 = z depth-must be negative, #2 = number of steps, #3 = 
     o{o_code_number+500} while [#15 GE #1]
 '''
     
-    for key,this_arc in this_hold.arcs.items():
-        this_command = r'{clockwise_dict[this_arc.clockwise]:.4f} X{this_arc.points.loc['end','x']:.4f} Y{this_arc.points.loc['end','y']} I{this_arc.points.loc['center','x']} J{this_arc.points.loc['center','y']}'        
+    #for key,this_arc in this_hold.arcs.items():
+        #this_command = r'{clockwise_dict[this_arc.clockwise]:.4f} X{this_arc.points.loc['end','x']:.4f} Y{this_arc.points.loc['end','y']} I{this_arc.points.loc['center','x']} J{this_arc.points.loc['center','y']}'        
     with open(r'NC Files\Output.ngc', 'w') as text_file:
         text_file.write(
 fr'''
@@ -355,6 +379,7 @@ def generate_hold(o_code_number,seed = -1,):
     if seed == -1:
         rnd.seed()
     this_hold = generate_random_hold_profile(seed,hold_height=40,hold_thickness=20)
+    smaller_hold = generate_smaller_hold_profile(this_hold,5)
     start_point = this_hold.arcs.iloc[0].points.loc['start'].values
     result = cq.Workplane("right").lineTo(start_point[0],start_point[1])
     
