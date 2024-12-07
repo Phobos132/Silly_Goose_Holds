@@ -266,24 +266,41 @@ class hold_profile:
         #for key,arc in self.arcs.items():
             
 def generate_smaller_hold_profile(hold,face_shift):
-    ledge_edge_distance = np.linalg.norm(hold.arcs['top_edge'].points.loc['center']
+    # figure out the new top edge position
+    ledge_edge_vector = (hold.arcs['top_edge'].points.loc['center']
                               - hold.arcs['top_ledge'].points.loc['center'])
-    shift_angle = face_shift/ledge_edge_distance
-    new_top_edge_position = [hold.arcs['top_edge'].points.loc['center','x']*np.cos(shift_angle) - hold.arcs['top_edge'].points.loc['center','x']*np.sin(shift_angle),
-                         hold.arcs['top_edge'].points.loc['center','x']*np.sin(shift_angle) + hold.arcs['top_edge'].points.loc['center','x']*np.cos(shift_angle)]
-    +
+    
+    shift_angle = face_shift/np.linalg.norm(ledge_edge_vector)
+    if not hold.arcs['top_ledge'].clockwise:
+        shift_angle = -shift_angle
+        
+    new_top_edge_position = [ledge_edge_vector['x']*np.cos(shift_angle) - ledge_edge_vector['y']*np.sin(shift_angle),
+                         ledge_edge_vector['x']*np.sin(shift_angle) + ledge_edge_vector['y']*np.cos(shift_angle)] + hold.arcs['top_ledge'].points.loc['center']
+    
+    # figure out the new bottom edge position
+    ledge_edge_vector = (hold.arcs['bottom_edge'].points.loc['center']
+                              - hold.arcs['bottom_ledge'].points.loc['center'])
+    
+    shift_angle = face_shift/np.linalg.norm(ledge_edge_vector)
+    if hold.arcs['bottom_ledge'].clockwise:
+        shift_angle = -shift_angle
+        
+    new_bottom_edge_position = [ledge_edge_vector['x']*np.cos(shift_angle) - ledge_edge_vector['y']*np.sin(shift_angle),
+                         ledge_edge_vector['x']*np.sin(shift_angle) + ledge_edge_vector['y']*np.cos(shift_angle)] + hold.arcs['bottom_ledge'].points.loc['center']
+    
+    
     smaller_profile = hold_profile(top_edge_position = new_top_edge_position,
                            top_edge_radius = hold.arcs['top_edge'].radius,
                            top_ledge_angle = hold.arcs['top_ledge'].get_tangent_angle('start'),
                            top_ledge_start_height = hold.arcs['top_ledge'].points.loc['start','y'],
-                           bottom_edge_position = [30,-30],
-                           bottom_edge_radius = 10,
-                           bottom_ledge_angle = -np.pi/10,
-                           bottom_ledge_start_height = -25,
-                           face_angle = np.pi/2,
-                           face_thickness = 30
+                           bottom_edge_position = new_bottom_edge_position,
+                           bottom_edge_radius = hold.arcs['bottom_edge'].radius,
+                           bottom_ledge_angle = hold.arcs['bottom_ledge'].get_tangent_angle('end') + np.pi,
+                           bottom_ledge_start_height = hold.arcs['bottom_ledge'].points.loc['end','y'],
+                           face_angle = hold.arcs['top_face'].get_tangent_angle('end') + np.pi,
+                           face_thickness = hold.arcs['top_face'].points.loc['end','x'] - face_shift
                            )
-    smaller_profile.plot()
+    #smaller_profile.plot()
 def generate_random_hold_profile(seed = -1,hold_height = 40.0,edge_radius = 0,edge_range = [1,3],edge_center = 0,hold_thickness = 0,max_thickness = 38):
     if seed == -1:
         rnd.seed()
