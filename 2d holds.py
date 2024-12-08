@@ -390,6 +390,13 @@ m2''')
 def save_gcode():
     return
 
+def generate_hold_series(hold_profile,center_width=19.05,width=19.05*2,step=3.175,taper_ratio = 0.5,curve='polynomial'):
+    steps = (width - center_width) / step
+    coef = taper_ratio / (steps**2)
+    hold_profiles = []
+    for i,x in enumerate(np.arange(center_width,width,step)):
+        
+    
 # Function to generate a full hold
 # Makes a cadquery shape by extruding the hold profile and cutting the bolt hole away
 def generate_hold(o_code_number,seed = -1,):
