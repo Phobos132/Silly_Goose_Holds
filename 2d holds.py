@@ -9,6 +9,10 @@ import copy
 
 # This script generates a 2d profile climbing hold that can be cut from
 # a 2x4
+
+def cross2d(x, y):
+    return x[..., 0] * y[..., 1] - x[..., 1] * y[..., 0]
+
 class arc:
     #points = pd.DataFrame(index=['start','end','center'],columns=['x','y'],dtype=float)
     #clockwise = False
@@ -269,27 +273,27 @@ def generate_smaller_hold_profile(hold,face_shift):
     # figure out the new top edge position
     ledge_end_vector = hold.arcs['top_ledge'].points.loc[['center','end']].diff().loc['end']
     ledge_start_vector = hold.arcs['top_ledge'].points.loc[['center','start']].diff().loc['start']
-    #θ = cos-1 [ (a. b) / (|a| |b|) ].
-    ledge_sweep_angle = np.arcsin(np.cross([ledge_start_vector.values[..., 0]],[ledge_end_vector.values.tolist(),0])
+
+    ledge_sweep_angle = np.arcsin(cross2d(ledge_end_vector.values,ledge_start_vector.values)
                                   / (np.linalg.norm(ledge_end_vector) **2)
                                   )
-                              #- hold.arcs['top_ledge'].points.loc['center'])
-    
+
     shift_angle = ledge_sweep_angle*face_shift
-    if not hold.arcs['top_ledge'].clockwise:
-        shift_angle = -shift_angle
-        
+    
+    ledge_edge_vector = hold.arcs['top_edge'].points.loc['center'] - hold.arcs['top_ledge'].points.loc['center']
     new_top_edge_position = [ledge_edge_vector['x']*np.cos(shift_angle) - ledge_edge_vector['y']*np.sin(shift_angle),
                          ledge_edge_vector['x']*np.sin(shift_angle) + ledge_edge_vector['y']*np.cos(shift_angle)] + hold.arcs['top_ledge'].points.loc['center']
     
     # figure out the new bottom edge position
-    ledge_edge_vector = (hold.arcs['bottom_edge'].points.loc['center']
-                              - hold.arcs['bottom_ledge'].points.loc['center'])
-    
-    shift_angle = face_shift/np.linalg.norm(ledge_edge_vector)
-    if hold.arcs['bottom_ledge'].clockwise:
-        shift_angle = -shift_angle
-        
+    ledge_end_vector = hold.arcs['bottom_ledge'].points.loc[['center','end']].diff().loc['end']
+    ledge_start_vector = hold.arcs['bottom_ledge'].points.loc[['center','start']].diff().loc['start']
+
+    ledge_sweep_angle = np.arcsin(cross2d(ledge_start_vector.values,ledge_end_vector.values)
+                                  / (np.linalg.norm(ledge_end_vector) **2)
+                                  )
+
+    shift_angle = ledge_sweep_angle*face_shift
+    ledge_edge_vector = hold.arcs['bottom_edge'].points.loc['center'] - hold.arcs['bottom_ledge'].points.loc['center']
     new_bottom_edge_position = [ledge_edge_vector['x']*np.cos(shift_angle) - ledge_edge_vector['y']*np.sin(shift_angle),
                          ledge_edge_vector['x']*np.sin(shift_angle) + ledge_edge_vector['y']*np.cos(shift_angle)] + hold.arcs['bottom_ledge'].points.loc['center']
     
@@ -303,8 +307,9 @@ def generate_smaller_hold_profile(hold,face_shift):
                            bottom_ledge_angle = hold.arcs['bottom_ledge'].get_tangent_angle('end') + np.pi,
                            bottom_ledge_start_height = hold.arcs['bottom_ledge'].points.loc['end','y'],
                            face_angle = hold.arcs['top_face'].get_tangent_angle('end') + np.pi,
-                           face_thickness = hold.arcs['top_face'].points.loc['end','x'] - face_shift
+                           face_thickness = hold.arcs['top_face'].points.loc['end','x'] * (1- face_shift)
                            )
+    return smaller_profile
     #smaller_profile.plot()
 def generate_random_hold_profile(seed = -1,hold_height = 40.0,edge_radius = 0,edge_range = [1,3],edge_center = 0,hold_thickness = 0,max_thickness = 38):
     if seed == -1:
@@ -398,18 +403,19 @@ def save_gcode():
 def generate_hold_series(hold_profile,center_width=19.05,width=19.05*2,step=3.175,taper_ratio = 0.5,curve='polynomial'):
     steps = (width - center_width) / step
     coef = taper_ratio / (steps**2)
-    hold_profiles = pd.DataFrame(columns=['profile','depth','segment','segment_depth'])
+    hold_profiles = pd.DataFrame(columns=['profile','depth','segment','segment_depth','step_depth'])
     for i,x in enumerate(np.arange(0,width,step)):
-        x_ignoring_center = (x - center_width)
+        
         if x <= center_width:
             hold_profiles.loc[i,'profile'] = hold_profile
         else:
-            hold_profiles.loc[i,'profile'] = generate_smaller_hold_profile(hold_profile,coef * x_ignoring_center**2)
+            steps_after_center = (i - center_width/step)
+            hold_profiles.loc[i,'profile'] = generate_smaller_hold_profile(hold_profile,coef * steps_after_center**2)
         hold_profiles.loc[i,'depth'] = x
         hold_profiles.loc[i,'segment_depth'] = x % center_width
         hold_profiles.loc[i,'segment_depth'] = x // center_width
-            
-            
+        hold_profiles.loc[i,'step_depth'] = step
+    return hold_profiles
         
         
     
@@ -419,15 +425,22 @@ def generate_hold(o_code_number,seed = -1,):
     if seed == -1:
         rnd.seed()
     this_hold = generate_random_hold_profile(seed,hold_height=40,hold_thickness=20)
-    hold_series = generate_hold_series(this_hold)
-    smaller_hold = generate_smaller_hold_profile(this_hold,5)
-    start_point = this_hold.arcs.iloc[0].points.loc['start'].values
-    result = cq.Workplane("right").lineTo(start_point[0],start_point[1])
+    hold_series = generate_hold_series(this_hold,center_width = 6.35,width = 6.35*2)
+
+
     
-    for key,this_arc in this_hold.arcs.items():
-        result = result.threePointArc(this_arc.points.loc['midpoint'].values,this_arc.points.loc['end'].values)
-    
-    result = result.close().extrude(75).translate((-37.5,0,0))
+    for i,row in hold_series.iterrows():
+        this_hold_profile = row['profile']
+        if i == 0:
+            result = cq.Workplane("right")
+        else:
+            result = result.workplane()
+            
+        for key,this_arc in this_hold_profile.arcs.items():
+            if key == 'top_ledge':
+                result = result.lineTo(this_arc.points.loc['start','x'],this_arc.points.loc['start','y'])
+            result = result.threePointArc(this_arc.points.loc['midpoint'].values,this_arc.points.loc['end'].values)
+        result = result.close().extrude(row['depth']+row['step_depth'])
 
     bolt_hole = cq.Workplane("right").polyline([(0,0),(200,0),(200,10),(18,10),(18,5),(0,5)]).close().revolve(angleDegrees=360, axisStart=(0, 0, 0), axisEnd=(1, 0, 0))
     result = result.cut(bolt_hole)
@@ -490,7 +503,7 @@ g_code_contouring_preamble = fr'''
 # Generate a whole bunch of holds and put them into an array
 #shapes_i = []
 #test = cq.Workplane()
-holds_to_generate = 8
+holds_to_generate = 1
 holds_generated = 0
 test = cq.Assembly()
 contour_g_codes = []
