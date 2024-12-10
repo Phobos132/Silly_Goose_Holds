@@ -400,7 +400,7 @@ m2''')
 def save_gcode():
     return
 
-def generate_hold_series(hold_profile,center_width=19.05,width=19.05*2,step=3.175,taper_ratio = 0.5,curve='polynomial'):
+def generate_hold_series(hold_profile,center_width=19.05,width=19.05*2,step=6.35,taper_ratio = 0.1,curve='polynomial'):
     steps = (width - center_width) / step
     coef = taper_ratio / (steps**2)
     hold_profiles = pd.DataFrame(columns=['profile','depth','segment','segment_depth','step_depth'])
@@ -425,7 +425,7 @@ def generate_hold(o_code_number,seed = -1,):
     if seed == -1:
         rnd.seed()
     this_hold = generate_random_hold_profile(seed,hold_height=40,hold_thickness=20)
-    hold_series = generate_hold_series(this_hold,center_width = 6.35,width = 6.35*2)
+    hold_series = generate_hold_series(this_hold)#,center_width = 6.35,width = 6.35*2)
 
 
     
@@ -434,16 +434,21 @@ def generate_hold(o_code_number,seed = -1,):
         if i == 0:
             result = cq.Workplane("right")
         else:
-            result = result.workplane()
+            result = result.copyWorkplane(
+                        # create a temporary object with the required workplane
+                        cq.Workplane("right", origin=(row['depth'],0,0))
+                    )
             
         for key,this_arc in this_hold_profile.arcs.items():
             if key == 'top_ledge':
                 result = result.lineTo(this_arc.points.loc['start','x'],this_arc.points.loc['start','y'])
             result = result.threePointArc(this_arc.points.loc['midpoint'].values,this_arc.points.loc['end'].values)
-        result = result.close().extrude(row['depth']+row['step_depth'])
+        result = result.close().extrude(row['step_depth'])
 
     bolt_hole = cq.Workplane("right").polyline([(0,0),(200,0),(200,10),(18,10),(18,5),(0,5)]).close().revolve(angleDegrees=360, axisStart=(0, 0, 0), axisEnd=(1, 0, 0))
     result = result.cut(bolt_hole)
+    mirror = result.mirror(mirrorPlane='YZ')
+    result = result.union(mirror)
     
     # result2 = (
     #     cq.Workplane("top")
