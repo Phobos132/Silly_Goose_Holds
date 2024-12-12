@@ -344,7 +344,29 @@ def generate_random_hold_profile(seed = -1,hold_height = 40.0,edge_radius = 0,ed
 
     return random_hold_profile
 
-def generate_gcode(hold,o_code_number):
+def generate_profile_gcode(profile,z_height,feedrate):
+    # assumes cutter compensation is on and that the cutter is positioned at 0,0
+    # at some Z > z_height, with absolute distance mode on
+    clockwise_dict = {True:'G2',False:'G3'}
+    profile_gcode = f'G1 X{profile.arcs.iloc[0].points.loc["start","x"]:.4f} Y{profile.arcs.iloc[0].points.loc["start","y"]:.4f} F{feedrate:.4f} \n'
+    for i,a in profile.arcs.items():
+        this_arc_gcode = f'{clockwise_dict[a.clockwise]} X{a.points.loc["end","x"]:.4f} Y{a.points.loc["end","y"]:.4f} I{a.points.loc["center","x"]:.4f} J{a.points.loc["center","y"]:.4f} \n'
+        profile_gcode = profile_gcode + this_arc_gcode
+    return profile_gcode
+
+def generate_gcode_3d(hold_series,o_code_number,x_offset,y_offset,x_step):
+    #`scaled_hold = hold.scale(1/25.4)
+    hold_series = hold_series[::-1]
+    last_segment = 9e9
+    hold_gcode = ''
+    for i,row in hold_series.iterrows():
+        if row['segment_number'] != last_segment:
+            hold_gcode += f'G52 X{x_offset + row["segment_number"]*x_step} Y{y_offset}'
+        profile = row['profile']
+        hold_profile_gcode = generate_profile_gcode(profile)
+    
+    
+def generate_gcode_2d(hold,o_code_number):
     scaled_hold = hold.scale(1/25.4)
     
     clockwise_dict = {True:'G2',False:'G3'}
@@ -360,7 +382,6 @@ o{o_code_number} sub (#1 = z depth-must be negative, #2 = number of steps, #3 = 
     #15 = #14
     o{o_code_number+500} while [#15 GE #1]
 '''
-    
     #for key,this_arc in this_hold.arcs.items():
         #this_command = r'{clockwise_dict[this_arc.clockwise]:.4f} X{this_arc.points.loc['end','x']:.4f} Y{this_arc.points.loc['end','y']} I{this_arc.points.loc['center','x']} J{this_arc.points.loc['center','y']}'        
     with open(r'NC Files\Output.ngc', 'w') as text_file:
@@ -413,7 +434,7 @@ def generate_hold_series(hold_profile,center_width=19.05,width=19.05*2,step=6.35
             hold_profiles.loc[i,'profile'] = generate_smaller_hold_profile(hold_profile,coef * steps_after_center**2)
         hold_profiles.loc[i,'depth'] = x
         hold_profiles.loc[i,'segment_depth'] = x % center_width
-        hold_profiles.loc[i,'segment_depth'] = x // center_width
+        hold_profiles.loc[i,'segment_number'] = x // center_width
         hold_profiles.loc[i,'step_depth'] = step
     return hold_profiles
         
@@ -425,9 +446,10 @@ def generate_hold(o_code_number,seed = -1,):
     if seed == -1:
         rnd.seed()
     this_hold = generate_random_hold_profile(seed,hold_height=40,hold_thickness=20)
+    generate_profile_gcode(this_hold, 2,10)
     hold_series = generate_hold_series(this_hold)#,center_width = 6.35,width = 6.35*2)
-
-
+    
+    gcode = generate_gcode_3d(hold_series,o_code_number,0,0,2)
     
     for i,row in hold_series.iterrows():
         this_hold_profile = row['profile']
