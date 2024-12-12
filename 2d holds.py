@@ -348,22 +348,39 @@ def generate_profile_gcode(profile,z_height,feedrate):
     # assumes cutter compensation is on and that the cutter is positioned at 0,0
     # at some Z > z_height, with absolute distance mode on
     clockwise_dict = {True:'G2',False:'G3'}
-    profile_gcode = f'G1 X{profile.arcs.iloc[0].points.loc["start","x"]:.4f} Y{profile.arcs.iloc[0].points.loc["start","y"]:.4f} F{feedrate:.4f} \n'
+    profile_gcode = f'G1 X{profile.arcs.iloc[0].points.loc["start","x"]:.4f} Y{profile.arcs.iloc[0].points.loc["start","y"]:.4f} Z{z_height:.4f} F{feedrate:.4f}\n'
     for i,a in profile.arcs.items():
-        this_arc_gcode = f'{clockwise_dict[a.clockwise]} X{a.points.loc["end","x"]:.4f} Y{a.points.loc["end","y"]:.4f} I{a.points.loc["center","x"]:.4f} J{a.points.loc["center","y"]:.4f} \n'
+        this_arc_gcode = f'{clockwise_dict[a.clockwise]} X{a.points.loc["end","x"]:.4f} Y{a.points.loc["end","y"]:.4f} I{a.points.loc["center","x"]:.4f} J{a.points.loc["center","y"]:.4f}\n'
         profile_gcode = profile_gcode + this_arc_gcode
     return profile_gcode
 
 def generate_gcode_3d(hold_series,o_code_number,x_offset,y_offset,x_step):
-    #`scaled_hold = hold.scale(1/25.4)
-    hold_series = hold_series[::-1]
+
+    #sort the hold profiles so the lowest one gets cut first, but that the highest
+    #level of that lowest number hold profile is first
+    hold_series = hold_series[::-1].sort_values('segment_number',ignore_index=True)
     last_segment = 9e9
     hold_gcode = ''
     for i,row in hold_series.iterrows():
         if row['segment_number'] != last_segment:
-            hold_gcode += f'G52 X{x_offset + row["segment_number"]*x_step} Y{y_offset}'
-        profile = row['profile']
-        hold_profile_gcode = generate_profile_gcode(profile)
+            hold_gcode += f'''
+G0 Z1.0
+G52 X{x_offset - row["segment_number"]*x_step} Y{y_offset}
+G42
+G0 X0.0 Y0.0 S2000 M3
+G1 Z0.1
+'''
+        profile = row['profile'].scale(1/25.4)
+        hold_profile_gcode = generate_profile_gcode(profile,z_height=row['segment_depth']/25.4,feedrate=10)
+        hold_gcode += hold_profile_gcode
+        last_segment = row['segment_number']
+    
+    hold_gcode += 'G0 Z1.0\n'
+    hold_gcode += 'M5\n'
+    print(hold_gcode)
+    with open(r'NC Files\Output.ngc', 'w') as text_file:
+        text_file.write(hold_gcode)
+    return hold_gcode
     
     
 def generate_gcode_2d(hold,o_code_number):
@@ -425,7 +442,7 @@ def generate_hold_series(hold_profile,center_width=19.05,width=19.05*2,step=6.35
     steps = (width - center_width) / step
     coef = taper_ratio / (steps**2)
     hold_profiles = pd.DataFrame(columns=['profile','depth','segment','segment_depth','step_depth'])
-    for i,x in enumerate(np.arange(0,width,step)):
+    for i,x in enumerate(np.linspace(0,width-step,int(width//step))):
         
         if x <= center_width:
             hold_profiles.loc[i,'profile'] = hold_profile
@@ -433,8 +450,8 @@ def generate_hold_series(hold_profile,center_width=19.05,width=19.05*2,step=6.35
             steps_after_center = (i - center_width/step)
             hold_profiles.loc[i,'profile'] = generate_smaller_hold_profile(hold_profile,coef * steps_after_center**2)
         hold_profiles.loc[i,'depth'] = x
-        hold_profiles.loc[i,'segment_depth'] = x % center_width
-        hold_profiles.loc[i,'segment_number'] = x // center_width
+        hold_profiles.loc[i,'segment_depth'] = (x + 1e-9) % center_width
+        hold_profiles.loc[i,'segment_number'] = (x + 1e-9)  // center_width
         hold_profiles.loc[i,'step_depth'] = step
     return hold_profiles
         
@@ -449,7 +466,7 @@ def generate_hold(o_code_number,seed = -1,):
     generate_profile_gcode(this_hold, 2,10)
     hold_series = generate_hold_series(this_hold)#,center_width = 6.35,width = 6.35*2)
     
-    gcode = generate_gcode_3d(hold_series,o_code_number,0,0,2)
+    gcode = generate_gcode_3d(hold_series,o_code_number,0.0,0.0,2.0)
     
     for i,row in hold_series.iterrows():
         this_hold_profile = row['profile']
