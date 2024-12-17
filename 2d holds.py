@@ -358,25 +358,28 @@ def generate_gcode_3d(hold_series,o_code_number,x_offset,y_offset,x_step):
 
     #sort the hold profiles so the lowest one gets cut first, but that the highest
     #level of that lowest number hold profile is first
-    hold_series = hold_series[::-1].sort_values('segment_number',ignore_index=True)
+    hold_series = hold_series.sort_values('depth',ignore_index=True,ascending=False)
     last_segment = 9e9
-    hold_gcode = ''
+    hold_gcode = 'G90.1'
     for i,row in hold_series.iterrows():
         if row['segment_number'] != last_segment:
             hold_gcode += f'''
 G0 Z1.0
+G40
 G52 X{x_offset - row["segment_number"]*x_step} Y{y_offset}
 G42
 G0 X0.0 Y0.0 S2000 M3
-G1 Z0.1
+G1 Z0.9 F10.00
 '''
-        profile = row['profile'].scale(1/25.4)
+        #profile = row['profile'].scale(1/25.4)
+        profile = row['profile']
         hold_profile_gcode = generate_profile_gcode(profile,z_height=row['segment_depth']/25.4,feedrate=10)
         hold_gcode += hold_profile_gcode
         last_segment = row['segment_number']
     
     hold_gcode += 'G0 Z1.0\n'
     hold_gcode += 'M5\n'
+    hold_gcode += 'M2\n'
     print(hold_gcode)
     with open(r'NC Files\Output.ngc', 'w') as text_file:
         text_file.write(hold_gcode)
@@ -438,14 +441,14 @@ m2''')
 def save_gcode():
     return
 
-def generate_hold_series(hold_profile,center_width=19.05,width=19.05*2,step=6.35,taper_ratio = 0.1,curve='polynomial'):
+def generate_hold_series(hold_profile,center_width=19.05,width=19.05*3,step=3.125,taper_ratio = 0.2,curve='polynomial'):
     steps = (width - center_width) / step
     coef = taper_ratio / (steps**2)
     hold_profiles = pd.DataFrame(columns=['profile','depth','segment','segment_depth','step_depth'])
     for i,x in enumerate(np.linspace(0,width-step,int(width//step))):
         
         if x <= center_width:
-            hold_profiles.loc[i,'profile'] = hold_profile
+            hold_profiles.loc[i,'profile'] =  copy.deepcopy(hold_profile)
         else:
             steps_after_center = (i - center_width/step)
             hold_profiles.loc[i,'profile'] = generate_smaller_hold_profile(hold_profile,coef * steps_after_center**2)
@@ -459,11 +462,13 @@ def generate_hold_series(hold_profile,center_width=19.05,width=19.05*2,step=6.35
     
 # Function to generate a full hold
 # Makes a cadquery shape by extruding the hold profile and cutting the bolt hole away
-def generate_hold(o_code_number,seed = -1,):
+def generate_hold(o_code_number,seed = -1):
     if seed == -1:
         rnd.seed()
-    this_hold = generate_random_hold_profile(seed,hold_height=40,hold_thickness=20)
-    generate_profile_gcode(this_hold, 2,10)
+    else:
+        rnd.seed(1)
+    this_hold = generate_random_hold_profile(seed,hold_height=40,hold_thickness=20).scale(1/25.4)
+    #generate_profile_gcode(this_hold, 2,10)
     hold_series = generate_hold_series(this_hold)#,center_width = 6.35,width = 6.35*2)
     
     gcode = generate_gcode_3d(hold_series,o_code_number,0.0,0.0,2.0)
@@ -560,7 +565,7 @@ for i in range(holds_to_generate):
     for j in range(holds_to_generate):
         print(j)
         #try:
-        shape,this_contour_g_code = generate_hold(o_code_number=(200+holds_generated))  # Use i as seed for randomness
+        shape,this_contour_g_code = generate_hold(o_code_number=(200+holds_generated),seed=1)  # Use i as seed for randomness
         contour_g_codes.append(this_contour_g_code)
         test.add(shape, loc=cq.Location(cq.Vector(150.0*i, 150.0*j, 0.0),(0,0,1),rnd.randint(0, 180)))
         #shapes.append(shape)
