@@ -373,7 +373,7 @@ G1 Z0.9 F10.00
 '''
         #profile = row['profile'].scale(1/25.4)
         profile = row['profile']
-        hold_profile_gcode = generate_profile_gcode(profile,z_height=row['segment_depth']/25.4,feedrate=10)
+        hold_profile_gcode = generate_profile_gcode(profile,z_height=row['segment_depth'],feedrate=10)
         hold_gcode += hold_profile_gcode
         last_segment = row['segment_number']
     
@@ -441,7 +441,7 @@ m2''')
 def save_gcode():
     return
 
-def generate_hold_series(hold_profile,center_width=19.05,width=19.05*3,step=3.125,taper_ratio = 0.2,curve='polynomial'):
+def generate_hold_series(hold_profile,center_width=3/4,width=3/4*2,step=1/16,taper_ratio = 0.2,curve='polynomial'):
     steps = (width - center_width) / step
     coef = taper_ratio / (steps**2)
     hold_profiles = pd.DataFrame(columns=['profile','depth','segment','segment_depth','step_depth'])
@@ -489,7 +489,7 @@ def generate_hold(o_code_number,seed = -1):
             result = result.threePointArc(this_arc.points.loc['midpoint'].values,this_arc.points.loc['end'].values)
         result = result.close().extrude(row['step_depth'])
 
-    bolt_hole = cq.Workplane("right").polyline([(0,0),(200,0),(200,10),(18,10),(18,5),(0,5)]).close().revolve(angleDegrees=360, axisStart=(0, 0, 0), axisEnd=(1, 0, 0))
+    bolt_hole = cq.Workplane("right").polyline([(0,0),(200,0),(200,3/8),(3/4,3/8),(3/4,5),(0,3/16)]).close().revolve(angleDegrees=360, axisStart=(0, 0, 0), axisEnd=(1, 0, 0))
     result = result.cut(bolt_hole)
     mirror = result.mirror(mirrorPlane='YZ')
     result = result.union(mirror)
