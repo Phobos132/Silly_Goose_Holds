@@ -343,6 +343,18 @@ def generate_random_hold_profile(seed = -1,hold_height = 40.0,edge_radius = 0,ed
                        )
 
     return random_hold_profile
+def generate_profile_arcs_gcode(profile,feedrate,forward=True):
+    # assumes cutter compensation is on and that the cutter is positioned at
+    # the start of the ledge arc on the profile at the intended Z height
+    # with absolute distance mode on
+    clockwise_dict = {True:'G2',False:'G3'}
+    profile_gcode = []
+    if forward:
+        for i,a in profile.arcs.items():
+            this_arc_gcode = f'{clockwise_dict[a.clockwise]} X{a.points.loc["end","x"]:.4f} Y{a.points.loc["end","y"]:.4f} I{a.points.loc["center","x"]:.4f} J{a.points.loc["center","y"]:.4f}\n'
+            profile_gcode = profile_gcode + this_arc_gcode
+    else
+    return profile_gcode,distance
 
 def generate_profile_gcode(profile,z_height,feedrate):
     # assumes cutter compensation is on and that the cutter is positioned at 0,0
