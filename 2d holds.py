@@ -28,6 +28,13 @@ class arc:
         self.clockwise = clockwise_in
         self.refresh()
     
+    def reverse(self):
+        reversed_arc = arc(start_point = self.points.loc['end'],
+                           end_point = self.points.loc['start'],
+                           center_point = self.points.loc['center'],
+                           clockwise_in = not self.clockwise)
+        return reversed_arc
+    
     def refresh(self):
         self.radius = self.check_radius()
         self.points.loc['midpoint'] = self.find_midpoint()
@@ -80,13 +87,34 @@ class arc:
             mid_angle = mid_angle + np.pi
         
         midpoint = self.points.loc['center'] + [self.radius*np.cos(mid_angle),self.radius*np.sin(mid_angle)]
-        
         return midpoint
+    
+    def get_arc_length(self):
+        start_vector = self.points.loc['start'] - self.points.loc['center']
+        start_angle = np.arctan2(start_vector['y'],start_vector['x']) % (2*np.pi)
+        end_vector = self.points.loc['end'] - self.points.loc['center']
+        end_angle = np.arctan2(end_vector['y'],end_vector['x']) %  (2*np.pi)
         
+        if self.clockwise:
+            angle = (start_angle - end_angle) % (2*np.pi)
+        else:
+            angle = (end_angle - start_angle)  % (2*np.pi)
+        
+        arc_length = angle * self.radius
+        return arc_length
+    
+    def scale(self,scale_factor):
+        scaled_arc = arc(start_point = self.points.loc['start'] * scale_factor,
+                           end_point = self.points.loc['end'] * scale_factor,
+                           center_point = self.points.loc['center'] * scale_factor,
+                           clockwise_in = self.clockwise)
+        return scaled_arc
+    
 my_arc = arc([0,0],[2,2],[2,0],True)
 my_arc.points.loc['start','x'] = 0
 my_arc.clockwise
 my_arc.radius
+test = my_arc.reverse()
 
 class hold_profile:
     # class to hold all the information needed to define a hold consisting of
@@ -187,8 +215,7 @@ class hold_profile:
         scaled_hold = copy.deepcopy(self)
         
         for key,this_arc in scaled_hold.arcs.items():
-            scaled_hold.arcs[key].points = this_arc.points*scale_factor
-            scaled_hold.arcs[key].refresh()
+            scaled_hold.arcs[key] = this_arc.scale(scale_factor)
 
         #scaled_hold.refresh()
         return scaled_hold
@@ -268,6 +295,9 @@ class hold_profile:
     def check_consistency(self):
         previous_arc = []
         #for key,arc in self.arcs.items():
+            
+    def reverse_profile(self):
+        pass
             
 def generate_smaller_hold_profile(hold,face_shift):
     # figure out the new top edge position
@@ -353,7 +383,8 @@ def generate_profile_arcs_gcode(profile,feedrate,forward=True):
         for i,a in profile.arcs.items():
             this_arc_gcode = f'{clockwise_dict[a.clockwise]} X{a.points.loc["end","x"]:.4f} Y{a.points.loc["end","y"]:.4f} I{a.points.loc["center","x"]:.4f} J{a.points.loc["center","y"]:.4f}\n'
             profile_gcode = profile_gcode + this_arc_gcode
-    else
+    else:
+        pass
     return profile_gcode,distance
 
 def generate_profile_gcode(profile,z_height,feedrate):
