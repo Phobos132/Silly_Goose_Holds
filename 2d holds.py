@@ -219,7 +219,17 @@ class hold_profile:
 
         #scaled_hold.refresh()
         return scaled_hold
-
+    
+    def copy(self):
+        #not finished, deepcopy doesn't work here
+        copied_hold = copy.deepcopy(self)
+        
+    def reverse(self):
+        reversed_hold = copy.deepcopy(self)
+        for arc in self.reversed_hold:
+            arc = arc.reverse()
+        reversed_hold.arcs = reversed_hold.arcs[::-1]
+    
     def plot(self):
         # figure settings
         figure_width = 60 # cm
