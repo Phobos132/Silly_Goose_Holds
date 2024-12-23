@@ -226,8 +226,9 @@ class hold_profile:
         
     def reverse(self):
         reversed_hold = copy.deepcopy(self)
-        for arc in self.reversed_hold:
-            arc = arc.reverse()
+
+        for i,arc in enumerate(self.arcs):
+            reversed_hold.arcs.iloc[i] = arc.reverse()
         reversed_hold.arcs = reversed_hold.arcs[::-1]
     
     def plot(self):
