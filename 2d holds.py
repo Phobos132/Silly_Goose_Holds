@@ -13,6 +13,38 @@ import copy
 def cross2d(x, y):
     return x[..., 0] * y[..., 1] - x[..., 1] * y[..., 0]
 
+# G-Code Preamble String
+g_code_contouring_preamble = fr'''
+(subroutine to set work offset in terms of machine coords)
+	o101 sub
+		g10 l2 p1 x0.0 y0.0 z0.0
+	o101 ENDsub
+    
+(setup and tool call - 1st argument is tool number)
+	o102 sub
+		(set modal codes)
+		g00 g17 g40 g80 g90 g90.1 g98 g64 P0.001
+		(set work offset)
+		o101 call
+		(select work offset)
+		g54
+		
+		(stop spindle)
+		m5
+		(first optional stop)
+		m1
+		(rapid to tool change position)
+		g0 g53 z0 
+		g53 x0 y-10
+		(select tool)
+		t #1 m6
+		(apply tool offset)
+		g43 h #1
+		(second optional stop)
+		m1
+	o102 ENDsub
+'''
+
 class arc:
     #points = pd.DataFrame(index=['start','end','center'],columns=['x','y'],dtype=float)
     #clockwise = False
@@ -61,15 +93,15 @@ class arc:
             tangent_angle = vector_angle + np.pi/2
         return tangent_angle
     
-    def plot_arc(self,axes):
+    def plot_arc(self,axes,color='black'):
         start_vector = self.points.loc['start'] - self.points.loc['center']
         start_angle = np.arctan2(start_vector['y'],start_vector['x'])*180.0/np.pi % 360.0
         end_vector = self.points.loc['end'] - self.points.loc['center']
         end_angle = np.arctan2(end_vector['y'],end_vector['x'])*180.0/np.pi % 360.0
         if self.clockwise:
-            arc = patch.Arc(self.points.loc['center'],self.radius*2,self.radius*2, theta2 = start_angle, theta1 = end_angle)
+            arc = patch.Arc(self.points.loc['center'],self.radius*2,self.radius*2, theta2 = start_angle, theta1 = end_angle, edgecolor=color)
         else:
-            arc = patch.Arc(self.points.loc['center'],self.radius*2,self.radius*2, theta1 = start_angle, theta2 = end_angle)
+            arc = patch.Arc(self.points.loc['center'],self.radius*2,self.radius*2, theta1 = start_angle, theta2 = end_angle, edgecolor=color)
             #axes.add_artist(edge_arc)
         axes.add_patch(arc)
     
@@ -110,12 +142,29 @@ class arc:
                            clockwise_in = self.clockwise)
         return scaled_arc
     
-my_arc = arc([0,0],[2,2],[2,0],True)
-my_arc.points.loc['start','x'] = 0
-my_arc.clockwise
-my_arc.radius
-test = my_arc.reverse()
+    def rotate(self,rotation_angle_rad):
 
+        rot_matrix = np.array([[np.cos(rotation_angle_rad), np.sin(rotation_angle_rad)], 
+                                  [-np.sin(rotation_angle_rad),  np.cos(rotation_angle_rad)]])
+
+        rotated_arc = arc(start_point = np.matmul(self.points.loc['start'], rot_matrix),
+                           end_point = np.matmul(self.points.loc['end'], rot_matrix),
+                           center_point = np.matmul(self.points.loc['center'], rot_matrix),
+                           clockwise_in = self.clockwise)
+        return rotated_arc
+    
+    def flip_vertical(self):
+        flipped_arc = self.copy()
+        flipped_arc.points.loc[:,'y'] = -flipped_arc.points.loc[:,'y']
+        flipped_arc.clockwise = not flipped_arc.clockwise
+        return flipped_arc
+    
+    def copy(self):
+        copied_arc = arc(start_point = self.points.loc['start'],
+                           end_point = self.points.loc['end'],
+                           center_point = self.points.loc['center'],
+                           clockwise_in = self.clockwise)
+        return copied_arc
 class hold_profile:
     # class to hold all the information needed to define a hold consisting of
     #six arcs in a dictionary
@@ -209,16 +258,24 @@ class hold_profile:
         self.arcs['bottom_edge'].refresh()
         
         #self.serial = self.generate_serial()
-        self.plot()
+        #self.plot()
 
     def scale(self,scale_factor):
-        scaled_hold = copy.deepcopy(self)
+        scaled_profile = copy.deepcopy(self)
         
-        for key,this_arc in scaled_hold.arcs.items():
-            scaled_hold.arcs[key] = this_arc.scale(scale_factor)
+        for key,this_arc in scaled_profile.arcs.items():
+            scaled_profile.arcs[key] = this_arc.scale(scale_factor)
 
-        #scaled_hold.refresh()
-        return scaled_hold
+        #scaled_profile.refresh()
+        return scaled_profile
+    
+    def rotate(self,rotation_angle_rad):
+        rotated_profile = copy.deepcopy(self)
+        
+        for key,this_arc in rotated_profile.arcs.items():
+            rotated_profile.arcs[key] = this_arc.rotate(rotation_angle_rad)
+            
+        return rotated_profile
     
     def copy(self):
         #not finished, deepcopy doesn't work here
@@ -229,7 +286,18 @@ class hold_profile:
 
         for i,arc in enumerate(self.arcs):
             reversed_hold.arcs.iloc[i] = arc.reverse()
+            
         reversed_hold.arcs = reversed_hold.arcs[::-1]
+        return reversed_hold
+    
+    def flip(self):
+        flipped_profile = copy.deepcopy(self)
+        
+        for key,arc in flipped_profile.arcs.items():
+            flipped_profile.arcs[key] = arc.flip_vertical().reverse()
+        flipped_profile.arcs = flipped_profile.arcs[::-1]
+        flipped_profile.arcs.index = self.arcs.index.copy()
+        return flipped_profile
     
     def plot(self):
         # figure settings
@@ -252,11 +320,14 @@ class hold_profile:
         # limits settings (important)
         plt.xlim(0, figure_width * width)
         plt.ylim(-(figure_height * height)/2, (figure_height * height)/2)
-
-        for key,this_arc in self.arcs.items():
-            this_arc.plot_arc(axes)
-            plt.scatter(this_arc.points.loc[:,'x'],this_arc.points.loc[:,'y'])
         
+        colors = ['orange','blue','red','yellow','pink','black']
+        color_index = 0
+        for key,this_arc in self.arcs.items():
+            this_arc.plot_arc(axes,colors[color_index])
+            plt.scatter(this_arc.points.loc['start','x'],this_arc.points.loc['start','y'],color = colors[color_index])
+            color_index += 1
+            
         this_cirlce = plt.Circle((8,16),3.175)
         axes.add_patch(this_cirlce)
         this_cirlce = plt.Circle((8,-16),3.175)
@@ -384,18 +455,36 @@ def generate_random_hold_profile(seed = -1,hold_height = 40.0,edge_radius = 0,ed
                        )
 
     return random_hold_profile
-def generate_profile_arcs_gcode(profile,feedrate,forward=True):
+
+    
+def generate_profile_arcs_gcode(profile,z_height,feedrate,forward=True,ramp=True):
     # assumes cutter compensation is on and that the cutter is positioned at
     # the start of the ledge arc on the profile at the intended Z height
     # with absolute distance mode on
     clockwise_dict = {True:'G2',False:'G3'}
-    profile_gcode = []
+    distance = 0
+    
     if forward:
-        for i,a in profile.arcs.items():
-            this_arc_gcode = f'{clockwise_dict[a.clockwise]} X{a.points.loc["end","x"]:.4f} Y{a.points.loc["end","y"]:.4f} I{a.points.loc["center","x"]:.4f} J{a.points.loc["center","y"]:.4f}\n'
-            profile_gcode = profile_gcode + this_arc_gcode
+        this_profile = profile
     else:
-        pass
+        this_profile = profile.reverse()
+    
+    if ramp:
+        ramp_height = 0.1
+        
+    else:
+        ramp_height = 0.0
+        
+    profile_gcode = f'G1 X{profile.arcs.iloc[0].points.loc["start","x"]:.4f} Y{profile.arcs.iloc[0].points.loc["start","y"]:.4f} Z{z_height + ramp_height:.4f} F{feedrate:.4f}\n'
+    
+    for i,a in this_profile.arcs.items():
+        if i == 'bottom_ledge':
+            this_arc_gcode = f'{clockwise_dict[a.clockwise]} X{a.points.loc["end","x"]:.4f} Y{a.points.loc["end","y"]:.4f} I{a.points.loc["center","x"]:.4f} J{a.points.loc["center","y"]:.4f} Z{z_height + ramp_height:.4f}\n'
+        else:
+            this_arc_gcode = f'{clockwise_dict[a.clockwise]} X{a.points.loc["end","x"]:.4f} Y{a.points.loc["end","y"]:.4f} I{a.points.loc["center","x"]:.4f} J{a.points.loc["center","y"]:.4f} Z{z_height:.4f}\n'
+        profile_gcode = profile_gcode + this_arc_gcode
+        distance += a.get_arc_length()
+    
     return profile_gcode,distance
 
 def generate_profile_gcode(profile,z_height,feedrate):
@@ -408,26 +497,56 @@ def generate_profile_gcode(profile,z_height,feedrate):
         profile_gcode = profile_gcode + this_arc_gcode
     return profile_gcode
 
-def generate_gcode_3d(hold_series,o_code_number,x_offset,y_offset,x_step):
 
-    #sort the hold profiles so the lowest one gets cut first, but that the highest
-    #level of that lowest number hold profile is first
+def generate_gcode_3d(hold_series,o_code_number,x_offset,y_offset,rotation_rad):
+
+    hold_series = hold_series.sort_values('depth',ignore_index=True,ascending=False)
+    hold_gcode = g_code_contouring_preamble + f'''
+O101 call
+O102 call [239]
+G0 X0 Y1.0 Z{hold_series.iloc[0]['depth'] + 2.0}
+G40
+(G52 X{x_offset} Y{y_offset})
+G41
+G0 X0.0 Y0.0 S2000 M3
+G1 Z{hold_series.iloc[0]['depth']+0.1} F40.00
+'''
+    for i,row in hold_series.iterrows():
+        profile = row['profile'].scale(1/25.4).rotate(rotation_rad)
+        #profile.plot()
+        #row['profile'].plot()
+        #profile = row['profile']
+        hold_profile_gcode,distance = generate_profile_arcs_gcode(profile,z_height=row['depth'],feedrate=40)
+        hold_gcode += hold_profile_gcode
+    
+    hold_gcode += f'G0 Z{hold_series.iloc[0]["depth"] + 2.0}\n'
+    hold_gcode += 'M5\n'
+    hold_gcode += 'M2\n'
+    print(hold_gcode)
+    with open(r'NC Files\Output.ngc', 'w') as text_file:
+        text_file.write(hold_gcode)
+    return hold_gcode
+
+def generate_gcode_3d_sliced(hold_series,o_code_number,x_offset,y_offset,x_step):
+
     hold_series = hold_series.sort_values('depth',ignore_index=True,ascending=False)
     last_segment = 9e9
     hold_gcode = 'G90.1'
     for i,row in hold_series.iterrows():
         if row['segment_number'] != last_segment:
             hold_gcode += f'''
-G0 Z1.0
+G0 Z6.0
 G40
 G52 X{x_offset - row["segment_number"]*x_step} Y{y_offset}
 G42
 G0 X0.0 Y0.0 S2000 M3
 G1 Z0.9 F10.00
 '''
-        #profile = row['profile'].scale(1/25.4)
-        profile = row['profile']
-        hold_profile_gcode = generate_profile_gcode(profile,z_height=row['segment_depth'],feedrate=10)
+        profile = row['profile'].scale(1/25.4)
+        #profile.plot()
+        #row['profile'].plot()
+        #profile = row['profile']
+        hold_profile_gcode,distance = generate_profile_arcs_gcode(profile,z_height=row['segment_depth'],feedrate=10,forward=(i%2 == 0))
         hold_gcode += hold_profile_gcode
         last_segment = row['segment_number']
     
@@ -495,7 +614,7 @@ m2''')
 def save_gcode():
     return
 
-def generate_hold_series(hold_profile,center_width=3/4,width=3/4*2,step=1/16,taper_ratio = 0.2,curve='polynomial'):
+def generate_hold_series(hold_profile,center_width=0,width=1.625,step=1/16,taper_ratio = 0.5,curve='polynomial'):
     steps = (width - center_width) / step
     coef = taper_ratio / (steps**2)
     hold_profiles = pd.DataFrame(columns=['profile','depth','segment','segment_depth','step_depth'])
@@ -521,14 +640,17 @@ def generate_hold(o_code_number,seed = -1):
         rnd.seed()
     else:
         rnd.seed(1)
-    this_hold = generate_random_hold_profile(seed,hold_height=40,hold_thickness=20).scale(1/25.4)
+    this_hold = generate_random_hold_profile(seed,hold_height=40,hold_thickness=20)
+    flipped_hold = this_hold.flip()
+    flipped_hold.plot()
+    this_hold.plot()
     #generate_profile_gcode(this_hold, 2,10)
-    hold_series = generate_hold_series(this_hold)#,center_width = 6.35,width = 6.35*2)
+    hold_series = generate_hold_series(flipped_hold)#,center_width = 6.35,width = 6.35*2)
     
-    gcode = generate_gcode_3d(hold_series,o_code_number,0.0,0.0,2.0)
+    gcode = generate_gcode_3d(hold_series,o_code_number,0.0,0.0,-np.pi/2)
     
     for i,row in hold_series.iterrows():
-        this_hold_profile = row['profile']
+        this_hold_profile = row['profile'].scale(1/25.4)
         if i == 0:
             result = cq.Workplane("right")
         else:
@@ -544,64 +666,15 @@ def generate_hold(o_code_number,seed = -1):
         result = result.close().extrude(row['step_depth'])
 
     bolt_hole = cq.Workplane("right").polyline([(0,0),(200,0),(200,3/8),(3/4,3/8),(3/4,5),(0,3/16)]).close().revolve(angleDegrees=360, axisStart=(0, 0, 0), axisEnd=(1, 0, 0))
-    result = result.cut(bolt_hole)
+    #result = result.cut(bolt_hole)
     mirror = result.mirror(mirrorPlane='YZ')
     result = result.union(mirror)
     
-    # result2 = (
-    #     cq.Workplane("top")
-    #     .center(0.0,100.0)
-    #     .lineTo(vec_1.loc['top_corner','x'],vec_1.loc['top_corner','y'])
-    #     .threePointArc(arcs_1.loc['ledge',['mid_x','mid_y']].values, arcs_1.loc['ledge',['end_x','end_y']].values)
-    #     .threePointArc(arcs_1.loc['edge',['mid_x','mid_y']].values, arcs_1.loc['edge',['end_x','end_y']].values)
-    #     .threePointArc(arcs_1.loc['face',['mid_x','mid_y']].values, arcs_1.loc['face',['end_x','end_y']].values)
-    #     .threePointArc(arcs_2.loc['face',['mid_x','mid_y']].values, arcs_2.loc['face',['start_x','start_y']].values)
-    #     .threePointArc(arcs_2.loc['edge',['mid_x','mid_y']].values, arcs_2.loc['edge',['start_x','start_y']].values)
-    #     .threePointArc(arcs_2.loc['ledge',['mid_x','mid_y']].values, arcs_2.loc['ledge',['start_x','start_y']].values)
-    #     .lineTo(0.0,-100.0)
-    #     .lineTo(100.0,-100.0)
-    #     .lineTo(100.0,100.0)
-    #     .close()
-    #     .extrude(75)
-    #     #.translate((-37.5,0,0))
-    # )
-    
-    #result = result2.cut(bolt_hole)
     
     contour_g_code = "0"#generate_gcode(this_hold,o_code_number)
-    return result,contour_g_code
+    return result,gcode
 
-# G-Code Preamble String
-g_code_contouring_preamble = fr'''
-(subroutine to set work offset in terms of machine coords)
-	o101 sub
-		g10 l2 p1 x0.0 y0.0 z0.0
-	o101 ENDsub
-    
-(setup and tool call - 1st argument is tool number)
-	o102 sub
-		(set modal codes)
-		g00 g17 g40 g80 g90 g90.1 g98 g64 P0.001
-		(set work offset)
-		o101 call
-		(select work offset)
-		g54
-		
-		(stop spindle)
-		m5
-		(first optional stop)
-		m1
-		(rapid to tool change position)
-		g0 g53 z0 
-		g53 x0 y-10
-		(select tool)
-		t #1 m6
-		(apply tool offset)
-		g43 h #1
-		(second optional stop)
-		m1
-	o102 ENDsub
-'''
+
 
 # Generate a whole bunch of holds and put them into an array
 #shapes_i = []
@@ -619,7 +692,7 @@ for i in range(holds_to_generate):
     for j in range(holds_to_generate):
         print(j)
         #try:
-        shape,this_contour_g_code = generate_hold(o_code_number=(200+holds_generated),seed=1)  # Use i as seed for randomness
+        shape,this_contour_g_code = generate_hold(o_code_number=(200+holds_generated),seed=2)  # Use i as seed for randomness
         contour_g_codes.append(this_contour_g_code)
         test.add(shape, loc=cq.Location(cq.Vector(150.0*i, 150.0*j, 0.0),(0,0,1),rnd.randint(0, 180)))
         #shapes.append(shape)
