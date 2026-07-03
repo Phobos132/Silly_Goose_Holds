@@ -47,7 +47,7 @@ class arc:
                            - self.points.loc['center'])
             - np.linalg.norm(self.points.loc['end'] 
                               - self.points.loc['center'])) > 1e-10:
-            raise Exception("This is from the 'arc' class: the distance from "
+            raise Exception("This is from 'arc.check_radius': the distance from "
                             "the center to the end and the center to the start"
                             " are different!")
         else:
@@ -130,6 +130,19 @@ class arc:
         flipped_arc.clockwise = not flipped_arc.clockwise
         return flipped_arc
     
+    def offset(self,distance):
+        # THIS IS NOT DONE
+        if distance > self.radius:
+            raise Exception("This is from the 'arc.offset': the offset distance
+                            "is greater than the radius of the arc")
+        offset_arc = arc(start_point = self.points.loc['start'] +
+                             (np.linalg.norm(self.points.loc['center'] - self.points.loc['start']),
+                           end_point = self.points.loc['end'] * scale_factor,
+                           center_point = self.points.loc['center'] * scale_factor,
+                           clockwise_in = self.clockwise)
+        
+        return offset_arc
+    
     def copy(self):
         copied_arc = arc(start_point = self.points.loc['start'],
                            end_point = self.points.loc['end'],
@@ -156,7 +169,7 @@ class profile:
                  ):
         
         self.arcs = pd.Series(index = [
-                              'top_ledge',
+                                'top_ledge',
                                 'top_edge',
                                 'top_face',
                                 'bottom_face',
@@ -186,11 +199,12 @@ class profile:
             "right"
             )
         # need to flip this arc around
-        self.arcs['top_face'] = copy.deepcopy(temp_arc)
-        self.arcs['top_face'].points.loc['start'] = temp_arc.points.loc['end']
-        self.arcs['top_face'].points.loc['end'] = temp_arc.points.loc['start']
-        self.arcs['top_face'].clockwise = not temp_arc.clockwise
-        self.arcs['top_face'].refresh()
+        self.arcs['top_face'] = temp_arc.reverse()
+        # self.arcs['top_face'] = copy.deepcopy(temp_arc)
+        # self.arcs['top_face'].points.loc['start'] = temp_arc.points.loc['end']
+        # self.arcs['top_face'].points.loc['end'] = temp_arc.points.loc['start']
+        # self.arcs['top_face'].clockwise = not temp_arc.clockwise
+        # self.arcs['top_face'].refresh()
         
         self.arcs['top_edge'].points.loc['start'] = self.arcs['top_ledge'].points.loc['end']
         self.arcs['top_edge'].points.loc['end'] = self.arcs['top_face'].points.loc['start']
@@ -318,12 +332,7 @@ class profile:
         #self.serial = f'{self.arcs['top_edge'].points.loc['center']}'
 
     def find_tangent_arc(self,start_point,start_angle,goal_arc_center,goal_arc_radius,goal_side):
-        sx = start_point['x']
-        sy = start_point['y']
-        gx = goal_arc_center['x']
-        gy = goal_arc_center['y']
         gr = goal_arc_radius
-        t = start_angle
         c = goal_arc_center - start_point
         d_hat = np.array([np.cos(start_angle),np.sin(start_angle)])
         e_hat = np.array([-np.sin(start_angle),np.cos(start_angle)])
@@ -392,6 +401,18 @@ class profile:
                                )
         return smaller_profile
 
+    def offset(self,distance):
+        # note that this is not guaranteed to produce a viable "hold profile"
+        # its meant for generating toolpaths that
+        # positive distance means offsetting outwards
+        offset_profile = copy.deepcopy(self)
+        
+        for key,this_arc in offset_profile.arcs.items():
+            offset_profile.arcs[key] = this_arc.offset(distance)
+
+        #scaled_profile.refresh()
+        return offset_profile
+        
 if __name__ == "__main__":
     new_profile = profile(top_edge_position = [27,33],
                                 top_edge_radius = 4,
