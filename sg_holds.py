@@ -412,7 +412,37 @@ class profile:
 
         #scaled_profile.refresh()
         return offset_profile
+
+    def generate_gcode(self,z_height,feedrate,forward=True,ramp=True):
+        # assumes cutter compensation is on and that the cutter is positioned at
+        # the start of the ledge arc on the profile at the intended Z height
+        # with absolute distance mode on
+        clockwise_dict = {True:'G2',False:'G3'}
+        distance = 0
         
+        if forward:
+            this_profile = self
+        else:
+            this_profile = self.reverse()
+        
+        if ramp:
+            ramp_height = 0.1
+            
+        else:
+            ramp_height = 0.0
+            
+        profile_gcode = f'G1 X{this_profile.arcs.iloc[0].points.loc["start","x"]:.4f} Y{this_profile.arcs.iloc[0].points.loc["start","y"]:.4f} Z{z_height + ramp_height:.4f} F{feedrate:.4f}\n'
+        
+        for i,a in this_profile.arcs.items():
+            if i == 'bottom_ledge':
+                this_arc_gcode = f'{clockwise_dict[a.clockwise]} X{a.points.loc["end","x"]:.4f} Y{a.points.loc["end","y"]:.4f} I{a.points.loc["center","x"]:.4f} J{a.points.loc["center","y"]:.4f} Z{z_height + ramp_height:.4f}\n'
+            else:
+                this_arc_gcode = f'{clockwise_dict[a.clockwise]} X{a.points.loc["end","x"]:.4f} Y{a.points.loc["end","y"]:.4f} I{a.points.loc["center","x"]:.4f} J{a.points.loc["center","y"]:.4f} Z{z_height:.4f}\n'
+            profile_gcode = profile_gcode + this_arc_gcode
+            distance += a.get_arc_length()
+        
+        return profile_gcode,distance
+
 if __name__ == "__main__":
     new_profile = profile(top_edge_position = [27,33],
                                 top_edge_radius = 4,

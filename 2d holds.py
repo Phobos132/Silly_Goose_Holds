@@ -121,7 +121,7 @@ def generate_profile_gcode(profile,z_height,feedrate):
     return profile_gcode
 
 
-def generate_gcode_3d(hold_series,o_code_number,x_offset,y_offset,rotation_rad):
+def generate_gcode_3d(hold_series,name,x_offset,y_offset,rotation_rad):
 
     hold_series = hold_series.sort_values('depth',ignore_index=True,ascending=False)
     hold_gcode = g_code_contouring_preamble + f'''
@@ -146,11 +146,11 @@ G1 Z{hold_series.iloc[0]['depth']+0.1} F40.00
     hold_gcode += 'M5\n'
     hold_gcode += 'M2\n'
     print(hold_gcode)
-    with open(r'NC Files\Output.ngc', 'w') as text_file:
+    with open(rf'NC Files/{name}.ngc', 'w') as text_file:
         text_file.write(hold_gcode)
     return hold_gcode
 
-def generate_gcode_3d_sliced(hold_series,o_code_number,x_offset,y_offset,x_step):
+def generate_gcode_3d_sliced(hold_series,name,x_offset,y_offset,x_step):
 
     hold_series = hold_series.sort_values('depth',ignore_index=True,ascending=False)
     last_segment = 9e9
@@ -177,7 +177,7 @@ G1 Z0.9 F10.00
     hold_gcode += 'M5\n'
     hold_gcode += 'M2\n'
     print(hold_gcode)
-    with open(r'NC Files\Output.ngc', 'w') as text_file:
+    with open(rf'NC Files/{name}.ngc', 'w') as text_file:
         text_file.write(hold_gcode)
     return hold_gcode
     
@@ -247,7 +247,7 @@ def generate_hold_series(hold_profile,center_width=0,width=1.625,step=1/16,taper
             hold_profiles.loc[i,'profile'] =  copy.deepcopy(hold_profile)
         else:
             steps_after_center = (i - center_width/step)
-            hold_profiles.loc[i,'profile'] = sg.generate_smaller_profile(hold_profile,coef * steps_after_center**2)
+            hold_profiles.loc[i,'profile'] = hold_profile.generate_smaller_profile(coef * steps_after_center**2)
         hold_profiles.loc[i,'depth'] = x
         hold_profiles.loc[i,'segment_depth'] = (x + 1e-9) % center_width
         hold_profiles.loc[i,'segment_number'] = (x + 1e-9)  // center_width
@@ -298,44 +298,60 @@ def generate_hold(o_code_number,seed = -1):
     return result,gcode
 
 
-# Generate a whole bunch of holds and put them into an array
-#shapes_i = []
-#test = cq.Workplane()
-holds_to_generate = 1
-holds_generated = 0
-test = cq.Assembly()
-contour_g_codes = []
-# Generate 10 STEP files
-for i in range(holds_to_generate):
-    print(i)
-    #if i = 0:
-    #    test = create_revolved_shape(this_radius_seed=i)  # Use i as seed for randomness
-    #else
-    for j in range(holds_to_generate):
-        print(j)
-        #try:
-        shape,this_contour_g_code = generate_hold(o_code_number=(200+holds_generated),seed=2)  # Use i as seed for randomness
-        contour_g_codes.append(this_contour_g_code)
-        test.add(shape, loc=cq.Location(cq.Vector(150.0*i, 150.0*j, 0.0),(0,0,1),rnd.randint(0, 180)))
-        #shapes.append(shape)
-        file_name = f"revolved_shape_{i}_{j}.step"
-        #shape.save('f"hold_{i}_{j}.step"')
-        cq.exporters.export(shape, file_name)
-        print(f"Generated {file_name}")
-        holds_generated += 1
-        # except Exception as e:
-        #     print(e)
-        #     continue
+this_profile = sg.profile(top_edge_position = [25,20],
+                            top_edge_radius = 12,
+                            top_ledge_angle = -0.3,
+                            top_ledge_start_height = 30,
+                            bottom_edge_position = [20,-24],
+                            bottom_edge_radius = 15,
+                            bottom_ledge_angle = -np.pi/5,
+                            bottom_ledge_start_height = -22,
+                            face_angle = np.pi/2-0.1,
+                            face_thickness = 27)
+hold_series = generate_hold_series(this_profile)
+generate_gcode_3d(hold_series, 'lynns_hold', 0, 0, -np.pi/2)
+flipped_profile = this_profile.flip()
+flipped_series = generate_hold_series(flipped_profile)
+generate_gcode_3d(flipped_series, 'lynns_flipped_hold', 0, 0, -np.pi/2)
 
-# test = (cq.Assembly(shapes[0], cq.Location(cq.Vector(0, 0, 0)), name="root")
-#         #.add(shapes[0], loc=cq.Location(cq.Vector(0, 0, 6)))
-#         )
-# for i in range(holds_generated-1):
-#     test.add(shapes[i+1], loc=cq.Location(cq.Vector(100*(i+1), 0, 0)))
+# # Generate a whole bunch of holds and put them into an array
+# #shapes_i = []
+# #test = cq.Workplane()
+# holds_to_generate = 1
+# holds_generated = 0
+# test = cq.Assembly()
+# contour_g_codes = []
+# # Generate 10 STEP files
+# for i in range(holds_to_generate):
+#     print(i)
+#     #if i = 0:
+#     #    test = create_revolved_shape(this_radius_seed=i)  # Use i as seed for randomness
+#     #else
+#     for j in range(holds_to_generate):
+#         print(j)
+#         #try:
+#         shape,this_contour_g_code = generate_hold(o_code_number=(200+holds_generated),seed=2)  # Use i as seed for randomness
+#         contour_g_codes.append(this_contour_g_code)
+#         test.add(shape, loc=cq.Location(cq.Vector(150.0*i, 150.0*j, 0.0),(0,0,1),rnd.randint(0, 180)))
+#         #shapes.append(shape)
+#         file_name = f"revolved_shape_{i}_{j}.step"
+#         #shape.save('f"hold_{i}_{j}.step"')
+#         cq.exporters.export(shape, file_name)
+#         print(f"Generated {file_name}")
+#         holds_generated += 1
+#         # except Exception as e:
+#         #     print(e)
+#         #     continue
 
-# test = (cq.Workplane().union(shapes[1].translate([6,0,0]))
-#         .add(shapes[1],loc=(6,0,0))
-#         .add(shapes[2],loc=(18,0,0))
-#         )
+# # test = (cq.Assembly(shapes[0], cq.Location(cq.Vector(0, 0, 0)), name="root")
+# #         #.add(shapes[0], loc=cq.Location(cq.Vector(0, 0, 6)))
+# #         )
+# # for i in range(holds_generated-1):
+# #     test.add(shapes[i+1], loc=cq.Location(cq.Vector(100*(i+1), 0, 0)))
 
-test.save('assembly.step')
+# # test = (cq.Workplane().union(shapes[1].translate([6,0,0]))
+# #         .add(shapes[1],loc=(6,0,0))
+# #         .add(shapes[2],loc=(18,0,0))
+# #         )
+
+# test.save('assembly.step')
