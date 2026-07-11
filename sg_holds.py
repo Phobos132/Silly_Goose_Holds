@@ -131,14 +131,26 @@ class arc:
         return flipped_arc
     
     def offset(self,distance):
+        # positive distance means offset to the left
+        
+        #convert distance from left/right side indication to a circle scale factor
+        if self.clockwise:
+            scale_factor = (self.radius + distance)/self.radius
+        else:
+            scale_factor = (self.radius - distance)/self.radius
+            
         # THIS IS NOT DONE
-        if distance > self.radius:
-            raise Exception("This is from the 'arc.offset': the offset distance
-                            "is greater than the radius of the arc")
-        offset_arc = arc(start_point = self.points.loc['start'] +
-                             (np.linalg.norm(self.points.loc['center'] - self.points.loc['start']),
-                           end_point = self.points.loc['end'] * scale_factor,
-                           center_point = self.points.loc['center'] * scale_factor,
+        if scale_factor <= 0 :
+            raise Exception("This is from the 'arc.offset': the offset distance"
+                            "results in a negative scale factor")
+        centered_points = self.points-self.points.loc['center']
+        scaled_points = centered_points*scale_factor
+        
+        new_points = scaled_points + self.points.loc['center']
+        
+        offset_arc = arc(start_point = new_points.loc['start'],
+                           end_point = new_points.loc['end'],
+                           center_point = new_points.loc['center'],
                            clockwise_in = self.clockwise)
         
         return offset_arc
@@ -287,7 +299,7 @@ class profile:
     
     def plot(self):
         # figure settings
-        figure_width = 60 # cm
+        figure_width = 70 # cm
         figure_height = 100 # cm
         left_right_margin = 10 # cm
         top_bottom_margin = 10 # cm
@@ -304,7 +316,7 @@ class profile:
         axes = fig.add_axes((left, bottom, width, height))
         
         # limits settings (important)
-        plt.xlim(0, figure_width * width)
+        plt.xlim(-10, figure_width * width-10)
         plt.ylim(-(figure_height * height)/2, (figure_height * height)/2)
         
         colors = ['orange','blue','red','yellow','pink','black']
@@ -444,6 +456,8 @@ class profile:
         return profile_gcode,distance
 
 if __name__ == "__main__":
+    new_arc = arc()
+    offset_arc = new_arc.offset(0.1)
     new_profile = profile(top_edge_position = [27,33],
                                 top_edge_radius = 4,
                                 top_ledge_angle = 0.6,
@@ -454,3 +468,5 @@ if __name__ == "__main__":
                                 bottom_ledge_start_height = -30,
                                 face_angle = np.pi/2-0.2,
                                 face_thickness = 20)
+    offset_profile = new_profile.offset(5)
+    offset_profile.plot()
