@@ -177,7 +177,7 @@ class arc:
         line_points.loc[angles,'x'] = np.cos(angles)
         line_points.loc[angles,'y'] = np.sin(angles)
         
-        line_points = line_points + self.points.loc['center']
+        line_points = line_points*self.radius + self.points.loc['center']
         
         
         plt.plot(line_points['x'],line_points['y'])
@@ -457,14 +457,14 @@ class profile:
         #scaled_profile.refresh()
         return offset_profile
     
-    def to_lines(self):
+    def to_lines(self,number_of_lines):
         # note that this is not guaranteed to produce a viable "hold profile"
         # its meant for generating toolpaths that
         # positive distance means offsetting outwards
         points = np.array([[0,0]])
         
-        for key,this_arc in offset_profile.arcs.items():
-            points = np.concatenate((points,this_arc.to_lines(number_of_lines=4).values))
+        for key,this_arc in self.arcs.items():
+            points = np.concatenate((points,this_arc.to_lines(number_of_lines=number_of_lines).values))
             
         points = np.array(points)
         plt.plot(points[:,0],points[:,1])
@@ -476,7 +476,7 @@ class profile:
         # the start of the ledge arc on the profile at the intended Z height
         # with absolute distance mode on
         clockwise_dict = {True:'G2',False:'G3'}
-        distance = 0        ```````
+        distance = 0
         
         if forward:
             this_profile = self
@@ -515,8 +515,8 @@ if __name__ == "__main__":
                                 bottom_ledge_start_height = -30,
                                 face_angle = np.pi/2-0.2,
                                 face_thickness = 20)
-    offset_profile = new_profile.offset(5)
-    offset_profile.plot()
-    lines = offset_profile.to_lines()
+    #offset_profile = new_profile.offset(5)
+    new_profile.plot()
+    lines = new_profile.to_lines(5)
     
     
