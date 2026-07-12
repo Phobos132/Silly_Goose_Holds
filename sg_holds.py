@@ -176,7 +176,14 @@ class arc:
         line_points = pd.DataFrame(index=angles,columns=['x','y'],dtype=float)
         line_points.loc[angles,'x'] = np.cos(angles)
         line_points.loc[angles,'y'] = np.sin(angles)
-       
+        
+        line_points = line_points + self.points.loc['center']
+        
+        
+        plt.plot(line_points['x'],line_points['y'])
+        ax = plt.gca()
+        self.plot_arc(ax)
+        
         return line_points
             
     
@@ -449,13 +456,27 @@ class profile:
 
         #scaled_profile.refresh()
         return offset_profile
+    
+    def to_lines(self):
+        # note that this is not guaranteed to produce a viable "hold profile"
+        # its meant for generating toolpaths that
+        # positive distance means offsetting outwards
+        points = np.array([[0,0]])
+        
+        for key,this_arc in offset_profile.arcs.items():
+            points = np.concatenate((points,this_arc.to_lines(number_of_lines=4).values))
+            
+        points = np.array(points)
+        plt.plot(points[:,0],points[:,1])
+        #scaled_profile.refresh()
+        return points
 
     def generate_gcode(self,z_height,feedrate,forward=True,ramp=True):
         # assumes cutter compensation is on and that the cutter is positioned at
         # the start of the ledge arc on the profile at the intended Z height
         # with absolute distance mode on
         clockwise_dict = {True:'G2',False:'G3'}
-        distance = 0
+        distance = 0        ```````
         
         if forward:
             this_profile = self
@@ -496,3 +517,6 @@ if __name__ == "__main__":
                                 face_thickness = 20)
     offset_profile = new_profile.offset(5)
     offset_profile.plot()
+    lines = offset_profile.to_lines()
+    
+    
