@@ -77,14 +77,7 @@ class arc:
         axes.add_patch(arc)
     
     def find_midpoint(self):
-        start_vector = self.points.loc['start'] - self.points.loc['center']
-        start_angle = np.arctan2(start_vector['y'],start_vector['x'])
-        end_vector = self.points.loc['end'] - self.points.loc['center']
-        end_angle = np.arctan2(end_vector['y'],end_vector['x'])
-        #make it so the end angle is always greater than the start to make it
-        #easier to deal with clockwise/counter clockwise stuff
-        if (end_angle < start_angle):
-            end_angle = end_angle + np.pi*2
+        start_angle,end_angle = self.get_start_and_end_angles()
         mid_angle = ((start_angle + end_angle) / 2)
         if self.clockwise:
             mid_angle = mid_angle + np.pi
@@ -105,6 +98,19 @@ class arc:
         
         arc_length = angle * self.radius
         return arc_length
+    
+    def get_start_and_end_angles(self):
+        #returns the start and end angles where the end angle is always larger
+        
+        start_vector = self.points.loc['start'] - self.points.loc['center']
+        start_angle = np.arctan2(start_vector['y'],start_vector['x'])
+        end_vector = self.points.loc['end'] - self.points.loc['center']
+        end_angle = np.arctan2(end_vector['y'],end_vector['x'])
+        #make it so the end angle is always greater than the start to make it
+        #easier to deal with clockwise/counter clockwise stuff
+        if (end_angle < start_angle):
+            end_angle = end_angle + np.pi*2
+        return start_angle,end_angle
     
     def scale(self,scale_factor):
         scaled_arc = arc(start_point = self.points.loc['start'] * scale_factor,
@@ -139,7 +145,6 @@ class arc:
         else:
             scale_factor = (self.radius - distance)/self.radius
             
-        # THIS IS NOT DONE
         if scale_factor <= 0 :
             raise Exception("This is from the 'arc.offset': the offset distance"
                             "results in a negative scale factor")
@@ -154,6 +159,26 @@ class arc:
                            clockwise_in = self.clockwise)
         
         return offset_arc
+    
+    def to_lines(self,max_distance = 0.0, number_of_lines=0):
+        # THIS IS NOT DONE
+
+        if max_distance !=0:
+            number_of_lines = (self.get_arc_length % max_distance) + 1
+        
+        start_angle,end_angle = self.get_start_and_end_angles()
+        
+        if self.clockwise:
+           angles = np.linspace(start_angle, end_angle-2*np.pi,num=number_of_lines+1)
+        else:
+           angles = np.linspace(start_angle, end_angle,num=number_of_lines+1)
+        
+        line_points = pd.DataFrame(index=angles,columns=['x','y'],dtype=float)
+        line_points.loc[angles,'x'] = np.cos(angles)
+        line_points.loc[angles,'y'] = np.sin(angles)
+       
+        return line_points
+            
     
     def copy(self):
         copied_arc = arc(start_point = self.points.loc['start'],
@@ -457,6 +482,7 @@ class profile:
 
 if __name__ == "__main__":
     new_arc = arc()
+    points = new_arc.to_lines(number_of_lines=4)
     offset_arc = new_arc.offset(0.1)
     new_profile = profile(top_edge_position = [27,33],
                                 top_edge_radius = 4,
