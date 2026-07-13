@@ -20,8 +20,8 @@ class arc:
     #points = pd.DataFrame(index=['start','end','center'],columns=['x','y'],dtype=float)
     #clockwise = False
     #radius = 0.0
-    def __init__(self,start_point = [0,0]
-                 ,end_point = [1,1],
+    def __init__(self,start_point = [0,0],
+                 end_point = [1,1],
                  center_point = [1,0],
                  clockwise_in = True):
         self.points = pd.DataFrame(index=['start','end','center'],columns=['x','y'],dtype=float)
@@ -160,7 +160,7 @@ class arc:
         
         return offset_arc
     
-    def to_lines(self,max_distance = 0.0, number_of_lines=0):
+    def to_lines(self, max_distance = 0.0, number_of_lines=0, include_start=True):
         # THIS IS NOT DONE
 
         if max_distance !=0:
@@ -179,6 +179,8 @@ class arc:
         
         line_points = line_points*self.radius + self.points.loc['center']
         
+        if not include_start:
+            line_points = line_points.iloc[1:]
         
         plt.plot(line_points['x'],line_points['y'])
         ax = plt.gca()
@@ -219,7 +221,7 @@ class profile:
                                 'bottom_face',
                                 'bottom_edge',
                                 'bottom_ledge'
-                                ])
+                                ],dtype=object)
         
         self.arcs['top_edge'] = arc(clockwise_in = True)
         self.arcs['top_edge'].points.loc['center'] = top_edge_position
@@ -461,10 +463,10 @@ class profile:
         # note that this is not guaranteed to produce a viable "hold profile"
         # its meant for generating toolpaths that
         # positive distance means offsetting outwards
-        points = np.array([[0,0]])
+        points = np.array([self.arcs.iloc[0].points.loc['start'].values])
         
         for key,this_arc in self.arcs.items():
-            points = np.concatenate((points,this_arc.to_lines(number_of_lines=number_of_lines).values))
+            points = np.concatenate((points,this_arc.to_lines(number_of_lines=number_of_lines,include_start=False).values))
             
         points = np.array(points)
         plt.plot(points[:,0],points[:,1])
