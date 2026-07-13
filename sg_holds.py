@@ -70,9 +70,9 @@ class arc:
         end_vector = self.points.loc['end'] - self.points.loc['center']
         end_angle = np.arctan2(end_vector['y'],end_vector['x'])*180.0/np.pi % 360.0
         if self.clockwise:
-            arc = patch.Arc(self.points.loc['center'],self.radius*2,self.radius*2, theta2 = start_angle, theta1 = end_angle, edgecolor=color)
+            arc = patch.Arc(self.points.loc['center'].values,self.radius*2,self.radius*2, theta2 = start_angle, theta1 = end_angle, edgecolor=color)
         else:
-            arc = patch.Arc(self.points.loc['center'],self.radius*2,self.radius*2, theta1 = start_angle, theta2 = end_angle, edgecolor=color)
+            arc = patch.Arc(self.points.loc['center'].values,self.radius*2,self.radius*2, theta1 = start_angle, theta2 = end_angle, edgecolor=color)
             #axes.add_artist(edge_arc)
         axes.add_patch(arc)
     
