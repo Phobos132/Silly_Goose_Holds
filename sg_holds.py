@@ -12,6 +12,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as patch
 import copy
+import shapely
+from shapely.plotting import plot_polygon
 
 def cross2d(x, y):
     return x[..., 0] * y[..., 1] - x[..., 1] * y[..., 0]
@@ -467,7 +469,8 @@ class profile:
         
         for key,this_arc in self.arcs.items():
             points = np.concatenate((points,this_arc.to_lines(number_of_lines=number_of_lines,include_start=False).values))
-            
+        
+        points = np.concatenate((points,np.array([self.arcs.iloc[0].points.loc['start'].values])))
         points = np.array(points)
         plt.plot(points[:,0],points[:,1])
         #scaled_profile.refresh()
@@ -504,9 +507,9 @@ class profile:
         return profile_gcode,distance
 
 if __name__ == "__main__":
-    new_arc = arc()
-    points = new_arc.to_lines(number_of_lines=4)
-    offset_arc = new_arc.offset(0.1)
+    # new_arc = arc()
+    # points = new_arc.to_lines(number_of_lines=4)
+    # offset_arc = new_arc.offset(0.1)
     new_profile = profile(top_edge_position = [27,33],
                                 top_edge_radius = 4,
                                 top_ledge_angle = 0.6,
@@ -517,8 +520,57 @@ if __name__ == "__main__":
                                 bottom_ledge_start_height = -30,
                                 face_angle = np.pi/2-0.2,
                                 face_thickness = 20)
-    #offset_profile = new_profile.offset(5)
+    offset_profile = new_profile.offset(5)
     new_profile.plot()
     lines = new_profile.to_lines(5)
+    profile_shape = shapely.Polygon(lines)
+    offset_shape = shapely.Polygon(offset_profile.to_lines(5))
+    plot_polygon(profile_shape)
+    plot_polygon(offset_shape)
+    
+    shapely.covered_by(profile_shape,offset_shape)
+    
+    
+    kats_profile = profile(top_edge_position = [20,30],
+                                top_edge_radius = 8,
+                                top_ledge_angle = 0.8,
+                                top_ledge_start_height = 30,
+                                bottom_edge_position = [20,-30],
+                                bottom_edge_radius = 4,
+                                bottom_ledge_angle = -np.pi/10,
+                                bottom_ledge_start_height = -35,
+                                face_angle = np.pi/2-0.3,
+                                face_thickness = 25)
+
+    nikis_profile = profile(top_edge_position = [28,15],
+                                top_edge_radius = 8,
+                                top_ledge_angle = 1.5,
+                                top_ledge_start_height = 20,
+                                bottom_edge_position = [10,-35],
+                                bottom_edge_radius = 3,
+                                bottom_ledge_angle = -np.pi/11,
+                                bottom_ledge_start_height = -20,
+                                face_angle = np.pi/2-0.3,
+                                face_thickness = 30)
+    
+    undercut = 8
+    
+    nikis_offset = nikis_profile.offset(undercut)
+    kats_offset = kats_profile.offset(5)
+    
+    kats_shape = shapely.Polygon(kats_profile.to_lines(5))
+    kats_offset_shape = shapely.Polygon(kats_offset.to_lines(5))
+    nikis_shape = shapely.Polygon(nikis_profile.to_lines(5))
+    nikis_offset_shape = shapely.Polygon(nikis_offset.to_lines(5))
+    
+    plot_polygon(kats_shape)
+    plot_polygon(nikis_offset_shape)
+    
+    plot_polygon(nikis_shape)
+    plot_polygon(kats_offset_shape)
+
+    
+    shapely.covers(nikis_offset_shape,kats_shape)
+    shapely.covers(kats_offset_shape,nikis_shape)
     
     
