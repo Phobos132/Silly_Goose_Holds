@@ -17,7 +17,30 @@ from shapely.plotting import plot_polygon
 
 def cross2d(x, y):
     return x[..., 0] * y[..., 1] - x[..., 1] * y[..., 0]
-
+def check_clearance(top_profile,bottom_profile,cutter_undercut,check_both_ways=True):
+    
+    top_offset = top_profile.offset(cutter_undercut)
+    bottom_offset = bottom_profile.offset(cutter_undercut)
+    bottom_polygon = shapely.Polygon(bottom_profile.to_lines(max_distance=1.0))
+    bottom_offset_shape = shapely.Polygon(bottom_offset.to_lines(max_distance=1.0))
+    top_polygon = shapely.Polygon(top_profile.to_lines(max_distance=1.0))
+    top_offset_shape = shapely.Polygon(top_offset.to_lines(max_distance=1.0))
+    
+    plot_polygon(bottom_polygon)
+    plot_polygon(top_offset_shape)
+    plt.show()
+    
+    plot_polygon(top_polygon)
+    plot_polygon(bottom_offset_shape)
+    plt.show()
+    
+    if check_both_ways == True:
+        clearance_check = (shapely.covers(top_offset_shape,bottom_polygon) and shapely.covers(bottom_offset_shape,top_polygon))
+    else:
+        clearance_check = shapely.covers(top_offset_shape,bottom_polygon)
+        
+    return clearance_check
+    
 class arc:
     #points = pd.DataFrame(index=['start','end','center'],columns=['x','y'],dtype=float)
     #clockwise = False
@@ -64,7 +87,7 @@ class arc:
             tangent_angle = vector_angle - np.pi/2
         else:
             tangent_angle = vector_angle + np.pi/2
-        return tangent_angle
+        return tangent_anglecheck_clearance
     
     def plot_arc(self,axes,color='black'):
         start_vector = self.points.loc['start'] - self.points.loc['center']
@@ -163,10 +186,9 @@ class arc:
         return offset_arc
     
     def to_lines(self, max_distance = 0.0, number_of_lines=0, include_start=True):
-        # THIS IS NOT DONE
 
-        if max_distance !=0:
-            number_of_lines = (self.get_arc_length % max_distance) + 1
+        if max_distance !=0.0:
+            number_of_lines = int(self.get_arc_length() / max_distance) + 1
         
         start_angle,end_angle = self.get_start_and_end_angles()
         
@@ -461,14 +483,14 @@ class profile:
         #scaled_profile.refresh()
         return offset_profile
     
-    def to_lines(self,number_of_lines):
+    def to_lines(self, max_distance = 0.0, number_of_lines=0):
         # note that this is not guaranteed to produce a viable "hold profile"
         # its meant for generating toolpaths that
         # positive distance means offsetting outwards
         points = np.array([self.arcs.iloc[0].points.loc['start'].values])
         
         for key,this_arc in self.arcs.items():
-            points = np.concatenate((points,this_arc.to_lines(number_of_lines=number_of_lines,include_start=False).values))
+            points = np.concatenate((points,this_arc.to_lines(max_distance=max_distance,number_of_lines=number_of_lines,include_start=False).values))
         
         points = np.concatenate((points,np.array([self.arcs.iloc[0].points.loc['start'].values])))
         points = np.array(points)
@@ -522,9 +544,9 @@ if __name__ == "__main__":
                                 face_thickness = 20)
     offset_profile = new_profile.offset(5)
     new_profile.plot()
-    lines = new_profile.to_lines(5)
+    lines = new_profile.to_lines(number_of_lines=5)
     profile_shape = shapely.Polygon(lines)
-    offset_shape = shapely.Polygon(offset_profile.to_lines(5))
+    offset_shape = shapely.Polygon(offset_profile.to_lines(number_of_lines=5))
     plot_polygon(profile_shape)
     plot_polygon(offset_shape)
     
@@ -553,24 +575,8 @@ if __name__ == "__main__":
                                 face_angle = np.pi/2-0.3,
                                 face_thickness = 30)
     
-    undercut = 8
+    undercut = 9
     
-    nikis_offset = nikis_profile.offset(undercut)
-    kats_offset = kats_profile.offset(5)
+    test = check_clearance(kats_profile,nikis_profile,undercut)
     
-    kats_shape = shapely.Polygon(kats_profile.to_lines(5))
-    kats_offset_shape = shapely.Polygon(kats_offset.to_lines(5))
-    nikis_shape = shapely.Polygon(nikis_profile.to_lines(5))
-    nikis_offset_shape = shapely.Polygon(nikis_offset.to_lines(5))
-    
-    plot_polygon(kats_shape)
-    plot_polygon(nikis_offset_shape)
-    
-    plot_polygon(nikis_shape)
-    plot_polygon(kats_offset_shape)
-
-    
-    shapely.covers(nikis_offset_shape,kats_shape)
-    shapely.covers(kats_offset_shape,nikis_shape)
-    
-    
+    print(test)
