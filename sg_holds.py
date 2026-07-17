@@ -87,7 +87,7 @@ class arc:
             tangent_angle = vector_angle - np.pi/2
         else:
             tangent_angle = vector_angle + np.pi/2
-        return tangent_anglecheck_clearance
+        return tangent_angle
     
     def plot_arc(self,axes,color='black'):
         start_vector = self.points.loc['start'] - self.points.loc['center']
@@ -527,6 +527,28 @@ class profile:
             distance += a.get_arc_length()
         
         return profile_gcode,distance
+    
+    def get_constructor_values(self):
+
+        constructor_list = [
+            self.arcs['top_edge'].points.loc['center'].values,
+            self.arcs['top_edge'].radius,
+            self.arcs['top_ledge'].get_tangent_angle(),
+            self.arcs['top_ledge'].points.loc['start','y'],
+            self.arcs['bottom_edge'].points.loc['center'].values,
+            self.arcs['bottom_edge'].radius,
+            self.arcs['bottom_ledge'].get_tangent_angle('end') + np.pi,
+            self.arcs['bottom_ledge'].points.loc['end','y'],
+            self.arcs['top_face'].get_tangent_angle('end') + np.pi,
+            self.arcs['bottom_face'].points.loc['start','x']
+            ]
+        
+        return constructor_list
+
+def generate_profile_series_symmetric(centre_profile,edge_profile,width,step=1/16,curve='polynomial'):
+    # NOT DONE YET
+    steps = width / step
+    return
 
 if __name__ == "__main__":
     # new_arc = arc()
@@ -542,6 +564,10 @@ if __name__ == "__main__":
                                 bottom_ledge_start_height = -30,
                                 face_angle = np.pi/2-0.2,
                                 face_thickness = 20)
+    
+    new_constructor = new_profile.get_constructor_values()
+    
+    regen_profile = profile(*new_constructor)
     offset_profile = new_profile.offset(5)
     new_profile.plot()
     lines = new_profile.to_lines(number_of_lines=5)
