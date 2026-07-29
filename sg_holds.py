@@ -221,8 +221,8 @@ class arc:
         return copied_arc
     
 class profile:
-    # class to hold all the information needed to define a hold consisting of
-    #six arcs in a dictionary
+    # class to hold all the information needed to define a 2d hold profile consisting of
+    # six arcs in a pandas dataframe
     # should also have a serial number made from the values in the arcs
     
     def __init__(self,
@@ -554,10 +554,19 @@ class profile:
         
         return constructor_list
 
-def generate_profile_series_symmetric(centre_profile,edge_profile,width,step=1/16,curve='polynomial'):
-    # NOT DONE YET
-    steps = width / step
-    return
+class hold:
+    # contains a series of 2d profiles which represent a 2d hold
+    # can generate g-code or step files of the hold
+    def __init__(self,
+                 top_profile_in,
+                 middle_profile_in,
+                 bottom_profile_in=None
+                 ):
+        
+    def generate_profile_interpolation(self,profile_start,profile_end,start_z,end_z,step=1/16,curve='polynomial'):
+        # NOT DONE YET
+        steps = width / step
+        return
 
 if __name__ == "__main__":
     # new_arc = arc()
