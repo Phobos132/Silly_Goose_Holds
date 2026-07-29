@@ -498,14 +498,14 @@ class profile:
         #scaled_profile.refresh()
         return points
 
-    def generate_gcode(self,z_height,feedrate,forward=True,ramp=True):
-        # assumes cutter compensation is on and that the cutter is positioned at
+    def generate_gcode(self,z_height,feedrate,climb=True,ramp=False):
+        # assumes is positioned at, does not assume that cutter comp is on or off
         # the start of the ledge arc on the profile at the intended Z height
         # with absolute distance mode on
         clockwise_dict = {True:'G2',False:'G3'}
         distance = 0
         
-        if forward:
+        if climb:
             this_profile = self
         else:
             this_profile = self.reverse()
@@ -527,7 +527,16 @@ class profile:
             distance += a.get_arc_length()
         
         return profile_gcode,distance
-    
+
+    def generate_gcode_offset(self,z_height,feedrate,cutter_radius,climb=True):
+        # generate the gcode for this profile hard coding the cutter radius to offset the toolpath by
+        # rather than using cutter compensation. This could be needed if the cutting is not going to
+        # be done in the xy plane, ie if cutting with a ball mill
+        
+        offset_profile = self.offset(cutter_radius)
+        profile_gcode,distance = offset_profile.generate_gcode(z_height,feedrate,climb)
+        return profile_gcode,distance
+        
     def get_constructor_values(self):
 
         constructor_list = [
