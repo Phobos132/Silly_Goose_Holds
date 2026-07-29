@@ -562,11 +562,24 @@ class hold:
                  middle_profile_in,
                  bottom_profile_in=None
                  ):
-        
-    def generate_profile_interpolation(self,profile_start,profile_end,start_z,end_z,step=1/16,curve='polynomial'):
-        # NOT DONE YET
-        steps = width / step
         return
+                     
+    def generate_profile_interpolation(self,start_profile,end_profile,start_z,end_z,step=1/16,curve='polynomial'):
+        # NOT DONE YET
+        height = np.abs(start_z-end_z)
+        steps = int(height // step)
+        start_constructor_vals = start_profile.get_contstructor_values()
+        end_constructor_vals = end_profile.get_contstructor_values()
+        diff = start_constructor_vals - end_constructor_vals
+        quad_coeffs = diff / (height**2)
+        
+        hold_profiles = pd.DataFrame(columns=['profile','depth','step_depth'])
+        for i,z in enumerate(np.linspace(0,height,steps):
+            constructor = start_constructor_vals + quad_coeffs*(z**2)
+            hold_profiles.loc[i,'profile'] = profile(*constructor)
+            hold_profiles.loc[i,'depth'] = z
+            
+        return hold_profiles
 
 if __name__ == "__main__":
     # new_arc = arc()
