@@ -560,12 +560,18 @@ class hold:
     def __init__(self,
                  top_profile_in,
                  middle_profile_in,
+                 width,
+                 step,
+                 middle_profile_fractional_position=0.5
                  bottom_profile_in=None
                  ):
+        top_profile_series = generate_profile_interpolation(top_profile_in,middle_profile_in,0,-width*middle_profile_fractional_position,step)
+        top_profile_series = top_profile_series.set_index('depth')
+        bottom_profile_series =  generate_profile_interpolation(middle_profile_in,bottom_profile_in,-width*middle_profile_fractional_position,width,step)
+        top_profile_series = top_profile_series.set_index('depth')         
         return
                      
     def generate_profile_interpolation(self,start_profile,end_profile,start_z,end_z,step=1/16,curve='polynomial'):
-        # NOT DONE YET
         height = np.abs(start_z-end_z)
         steps = int(height // step)
         start_constructor_vals = start_profile.get_contstructor_values()
