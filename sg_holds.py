@@ -568,9 +568,12 @@ class hold:
         top_profile_series = generate_profile_interpolation(top_profile_in,middle_profile_in,0,-width*middle_profile_fractional_position,step)
         top_profile_series = top_profile_series.set_index('depth')
         bottom_profile_series =  generate_profile_interpolation(middle_profile_in,bottom_profile_in,-width*middle_profile_fractional_position,width,step)
-        top_profile_series = top_profile_series.set_index('depth')         
+        bottom_profile_series = bottom_profile_series.set_index('depth')
+        profile_series = top_profile_series.combine_first(bottom_profile_series)
         return
-                     
+
+    def generate_2side_tombestone_gcode(self,cutter_radius,x_offset,y_offset,z_offset=0,cutte_height=0)
+        
     def generate_profile_interpolation(self,start_profile,end_profile,start_z,end_z,step=1/16,curve='polynomial'):
         height = np.abs(start_z-end_z)
         steps = int(height // step)
