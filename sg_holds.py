@@ -560,31 +560,33 @@ class hold:
     def __init__(self,
                  top_profile_in,
                  middle_profile_in,
-                 width,
-                 step,
-                 middle_profile_fractional_position=0.5
+                 width=1.5,
+                 step=1/16,
+                 middle_profile_fractional_position=0.5,
                  bottom_profile_in=None
                  ):
-        top_profile_series = generate_profile_interpolation(top_profile_in,middle_profile_in,0,-width*middle_profile_fractional_position,step)
+        top_profile_series = self.generate_profile_interpolation(top_profile_in,middle_profile_in,0,-width*middle_profile_fractional_position,step)
         top_profile_series = top_profile_series.set_index('depth')
-        bottom_profile_series =  generate_profile_interpolation(middle_profile_in,bottom_profile_in,-width*middle_profile_fractional_position,width,step)
+        bottom_profile_series =  self.generate_profile_interpolation(middle_profile_in,bottom_profile_in,-width*middle_profile_fractional_position,width,step)
         bottom_profile_series = bottom_profile_series.set_index('depth')
         profile_series = top_profile_series.combine_first(bottom_profile_series)
         return
 
-    def generate_2side_tombestone_gcode(self,cutter_radius,x_offset,y_offset,z_offset=0,cutte_height=0)
+    def generate_2side_tombestone_gcode(self,cutter_radius,x_offset,y_offset,z_offset=0,cutte_height=0):
+        return
         
     def generate_profile_interpolation(self,start_profile,end_profile,start_z,end_z,step=1/16,curve='polynomial'):
         height = np.abs(start_z-end_z)
         steps = int(height // step)
-        start_constructor_vals = start_profile.get_contstructor_values()
-        end_constructor_vals = end_profile.get_contstructor_values()
-        diff = start_constructor_vals - end_constructor_vals
-        quad_coeffs = diff / (height**2)
+        start_constructor_vals = start_profile.get_constructor_values()
+        end_constructor_vals = end_profile.get_constructor_values()
+        diff = [x-y for x,y in zip(start_constructor_vals,end_constructor_vals)]
+        quad_coeffs = [val/(height**2) for val in diff]
         
         hold_profiles = pd.DataFrame(columns=['profile','depth','step_depth'])
-        for i,z in enumerate(np.linspace(0,height,steps):
-            constructor = start_constructor_vals + quad_coeffs*(z**2)
+        for i,z in enumerate(np.linspace(0,height,steps)):
+            constructor_change = [val*(z**2) for val in quad_coeffs]
+            constructor = [x+y for x,y in zip(start_constructor_vals,constructor_change)]
             hold_profiles.loc[i,'profile'] = profile(*constructor)
             hold_profiles.loc[i,'depth'] = z
             
@@ -594,29 +596,29 @@ if __name__ == "__main__":
     # new_arc = arc()
     # points = new_arc.to_lines(number_of_lines=4)
     # offset_arc = new_arc.offset(0.1)
-    new_profile = profile(top_edge_position = [27,33],
-                                top_edge_radius = 4,
-                                top_ledge_angle = 0.6,
-                                top_ledge_start_height = 27,
-                                bottom_edge_position = [31,-33],
-                                bottom_edge_radius = 5,
-                                bottom_ledge_angle = -np.pi/10,
-                                bottom_ledge_start_height = -30,
-                                face_angle = np.pi/2-0.2,
-                                face_thickness = 20)
+    # new_profile = profile(top_edge_position = [27,33],
+    #                             top_edge_radius = 4,
+    #                             top_ledge_angle = 0.6,
+    #                             top_ledge_start_height = 27,
+    #                             bottom_edge_position = [31,-33],
+    #                             bottom_edge_radius = 5,
+    #                             bottom_ledge_angle = -np.pi/10,
+    #                             bottom_ledge_start_height = -30,
+    #                             face_angle = np.pi/2-0.2,
+    #                             face_thickness = 20)
     
-    new_constructor = new_profile.get_constructor_values()
+    # new_constructor = new_profile.get_constructor_values()
     
-    regen_profile = profile(*new_constructor)
-    offset_profile = new_profile.offset(5)
-    new_profile.plot()
-    lines = new_profile.to_lines(number_of_lines=5)
-    profile_shape = shapely.Polygon(lines)
-    offset_shape = shapely.Polygon(offset_profile.to_lines(number_of_lines=5))
-    plot_polygon(profile_shape)
-    plot_polygon(offset_shape)
+    # regen_profile = profile(*new_constructor)
+    # offset_profile = new_profile.offset(5)
+    # new_profile.plot()
+    # lines = new_profile.to_lines(number_of_lines=5)
+    # profile_shape = shapely.Polygon(lines)
+    # offset_shape = shapely.Polygon(offset_profile.to_lines(number_of_lines=5))
+    # plot_polygon(profile_shape)
+    # plot_polygon(offset_shape)
     
-    shapely.covered_by(profile_shape,offset_shape)
+    # shapely.covered_by(profile_shape,offset_shape)
     
     
     kats_profile = profile(top_edge_position = [20,30],
@@ -643,6 +645,10 @@ if __name__ == "__main__":
     
     undercut = 9
     
-    test = check_clearance(kats_profile,nikis_profile,undercut)
+    # test = check_clearance(kats_profile,nikis_profile,undercut)
+    # print(test)
     
-    print(test)
+    my_hold = hold(kats_profile,nikis_profile)
+    
+        
+    
