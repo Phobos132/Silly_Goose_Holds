@@ -15,6 +15,38 @@ import copy
 import shapely
 from shapely.plotting import plot_polygon
 
+# G-Code Preamble String
+g_code_contouring_preamble = fr'''
+(subroutine to set work offset in terms of machine coords)
+	o101 sub
+		g10 l2 p1 x0.0 y0.0 z0.0
+	o101 ENDsub
+    
+(setup and tool call - 1st argument is tool number)
+	o102 sub
+		(set modal codes)
+		g00 g17 g40 g80 g90 g90.1 g98 g64 P0.001
+		(set work offset)
+		o101 call
+		(select work offset)
+		g54
+		
+		(stop spindle)
+		m5
+		(first optional stop)
+		m1
+		(rapid to tool change position)
+		g0 g53 z0 
+		g53 x0 y-10
+		(select tool)
+		t #1 m6
+		(apply tool offset)
+		g43 h #1
+		(second optional stop)
+		m1
+	o102 ENDsub
+'''
+
 def cross2d(x, y):
     return x[..., 0] * y[..., 1] - x[..., 1] * y[..., 0]
 def check_clearance(top_profile,bottom_profile,cutter_undercut,check_both_ways=True):
@@ -40,7 +72,28 @@ def check_clearance(top_profile,bottom_profile,cutter_undercut,check_both_ways=T
         clearance_check = shapely.covers(top_offset_shape,bottom_polygon)
         
     return clearance_check
-    
+
+def create_tombstone_gcode(hold_x_plus=None,
+                           hold_y_plus=None,
+                           hold_x_minus=None,
+                           hold_y_minus=None,
+                           origin = "x-,y-"
+                           x_width,
+                           y_width,
+                           cutter_height = 0.5,
+                           tool number=239):
+     hold_gcode = g_code_contouring_preamble + f'''
+O101 call
+O102 call [{number}]
+G0 X0 Y1.0 Z{hold_series.iloc[0]['depth'] + 2.0}
+G40
+(G52 X{x_offset} Y{y_offset})
+G41
+G0 X0.0 Y0.0 S2000 M3
+G1 Z{hold_series.iloc[0]['depth']+0.1} F40.00
+'''
+                               
+                           
 class arc:
     #points = pd.DataFrame(index=['start','end','center'],columns=['x','y'],dtype=float)
     #clockwise = False
@@ -570,9 +623,6 @@ class hold:
         bottom_profile_series =  self.generate_profile_interpolation(middle_profile_in,bottom_profile_in,-width*middle_profile_fractional_position,width,step)
         bottom_profile_series = bottom_profile_series.set_index('depth')
         profile_series = top_profile_series.combine_first(bottom_profile_series)
-        return
-
-    def generate_2side_tombestone_gcode(self,cutter_radius,x_offset,y_offset,z_offset=0,cutte_height=0):
         return
         
     def generate_profile_interpolation(self,start_profile,end_profile,start_z,end_z,step=1/16,curve='polynomial'):
