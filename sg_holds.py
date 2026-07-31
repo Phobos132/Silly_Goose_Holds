@@ -49,6 +49,7 @@ g_code_contouring_preamble = fr'''
 
 def cross2d(x, y):
     return x[..., 0] * y[..., 1] - x[..., 1] * y[..., 0]
+
 def check_clearance(top_profile,bottom_profile,cutter_undercut,check_both_ways=True):
     
     top_offset = top_profile.offset(cutter_undercut)
@@ -73,18 +74,18 @@ def check_clearance(top_profile,bottom_profile,cutter_undercut,check_both_ways=T
         
     return clearance_check
 
-def create_tombstone_gcode(hold_x_plus=None,
+def create_tombstone_gcode(x_width,
+                           y_width,
+                           hold_x_plus=None,
                            hold_y_plus=None,
                            hold_x_minus=None,
                            hold_y_minus=None,
-                           origin = "x-,y-"
-                           x_width,
-                           y_width,
+                           origin = "x-,y-",
                            cutter_height = 0.5,
-                           tool number=239):
+                           tool_number=239):
      hold_gcode = g_code_contouring_preamble + f'''
 O101 call
-O102 call [{number}]
+O102 call [{tool_number}]
 G0 X0 Y1.0 Z{hold_series.iloc[0]['depth'] + 2.0}
 G40
 (G52 X{x_offset} Y{y_offset})
@@ -620,9 +621,11 @@ class hold:
                  ):
         top_profile_series = self.generate_profile_interpolation(top_profile_in,middle_profile_in,0,-width*middle_profile_fractional_position,step)
         top_profile_series = top_profile_series.set_index('depth')
+        if bottom_profile_in == None:
+            bottom_profile_in = top_profile_in
         bottom_profile_series =  self.generate_profile_interpolation(middle_profile_in,bottom_profile_in,-width*middle_profile_fractional_position,width,step)
         bottom_profile_series = bottom_profile_series.set_index('depth')
-        profile_series = top_profile_series.combine_first(bottom_profile_series)
+        self.profile_series = top_profile_series.combine_first(bottom_profile_series)
         return
         
     def generate_profile_interpolation(self,start_profile,end_profile,start_z,end_z,step=1/16,curve='polynomial'):
@@ -630,7 +633,10 @@ class hold:
         steps = int(height // step)
         start_constructor_vals = start_profile.get_constructor_values()
         end_constructor_vals = end_profile.get_constructor_values()
-        diff = [x-y for x,y in zip(start_constructor_vals,end_constructor_vals)]
+        diff = [x-y for x,y in zip(end_constructor_vals,start_constructor_vals)]
+        diff[2] = ((diff[2] + np.pi/2) % np.pi) - np.pi/2
+        diff[6] = ((diff[6] + np.pi/2) % np.pi) - np.pi/2
+        diff[8] = ((diff[8] + np.pi/2) % np.pi) - np.pi/2
         quad_coeffs = [val/(height**2) for val in diff]
         
         hold_profiles = pd.DataFrame(columns=['profile','depth','step_depth'])
@@ -698,7 +704,15 @@ if __name__ == "__main__":
     # test = check_clearance(kats_profile,nikis_profile,undercut)
     # print(test)
     
-    my_hold = hold(kats_profile,nikis_profile)
+    my_hold_1 = hold(kats_profile,nikis_profile)
+    my_hold_2 = hold(nikis_profile,kats_profile)
     
-        
+    create_tombstone_gcode(80,
+                            60,
+                            hold_x_plus=my_hold_2,
+                            hold_x_minus=my_hold_1,
+                            origin = "x-,y-",
+                            cutter_height = 0.5,
+                            tool_number=1)
+    
     
