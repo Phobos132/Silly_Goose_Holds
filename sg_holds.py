@@ -81,8 +81,33 @@ def create_tombstone_gcode(x_width,
                            hold_x_minus=None,
                            hold_y_minus=None,
                            origin = "x-,y-",
-                           cutter_height = 0.5,
+                           cutter_height_in = 0.5,
                            tool_number=239):
+							   
+	corner_clearance_profile = profile(top_edge_position = [5,-21],
+                                top_edge_radius = 30,
+                                top_ledge_angle = -np.pi/4,
+                                top_ledge_start_height = 44,
+                                bottom_edge_position = [3.5,-16],
+                                bottom_edge_radius = 6,
+                                bottom_ledge_angle = 0,
+                                bottom_ledge_start_height = -24,
+                                face_angle = np.pi/2,
+                                face_thickness = 10)
+	translations_x = 	   
+	hold_list = [hold_y_minus,hold_x_minus,hold_y_plus,hold_x_plus]
+	first_hold = next((item for item in my_list if item), None)
+	depths = first_hold.profile_series['depth']
+	z_step = depths.diff().mean()
+							   
+	for i,this_hold in enumerate(hold_list):
+		if this_hold == None:
+			hold_list[i] = hold(corner_clearance_profile,corner_clearance_profile,step=z_step)
+		elif (this_hold.depths != depths):
+			print("the holds don't all have the same depths, cannot generate gcode")
+			return None
+	# machine the bottom (y minus) hold first then go around in a clockwise direction
+		
      hold_gcode = g_code_contouring_preamble + f'''
 O101 call
 O102 call [{tool_number}]
@@ -90,9 +115,26 @@ G0 X0 Y1.0 Z{hold_series.iloc[0]['depth'] + 2.0}
 G40
 (G52 X{x_offset} Y{y_offset})
 G41
-G0 X0.0 Y0.0 S2000 M3
+G0 X-5.0 Y0.0 S2000 M3
 G1 Z{hold_series.iloc[0]['depth']+0.1} F40.00
 '''
+	for depth in depths
+		for this_hold in hold_list
+    for i,row in hold_series.iterrows():
+        profile = row['profile'].scale(1/25.4).rotate(rotation_rad)
+        #profile.plot()
+        #row['profile'].plot()
+        #profile = row['profile']
+        hold_profile_gcode,distance = generate_profile_arcs_gcode(profile,z_height=row['depth'],feedrate=40)
+        hold_gcode += hold_profile_gcode
+    
+    hold_gcode += f'G0 Z{hold_series.iloc[0]["depth"] + 2.0}\n'
+    hold_gcode += 'M5\n'
+    hold_gcode += 'M2\n'
+    print(hold_gcode)
+    with open(rf'NC Files/{name}.ngc', 'w') as text_file:
+        text_file.write(hold_gcode)
+    return hold_gcode
                                
                            
 class arc:
@@ -208,6 +250,14 @@ class arc:
                            center_point = np.matmul(self.points.loc['center'], rot_matrix),
                            clockwise_in = self.clockwise)
         return rotated_arc
+
+	def translate(self,xy_shift=[0,0]):
+		translated_arc = arc(start_point = self.points.loc['start'] + xy_shift,
+							 end_point = self.points.loc['end'] + xy_shift,
+							 center_point = self.points.loc['center'] + xy_shift,
+							 clockwise_in = self.clockwise)
+		return translated_arc
+							 
     
     def flip_vertical(self):
         flipped_arc = self.copy()
@@ -386,7 +436,15 @@ class profile:
             rotated_profile.arcs[key] = this_arc.rotate(rotation_angle_rad)
             
         return rotated_profile
-    
+		
+    def translate(self,x_shift,y_shift):
+		translated_profile = copy.deepcopy(self)
+
+		for key,this_arc in translated_profile.arcs.items():
+	            translated_profile.arcs[key] = this_arc.translate(x_shift,y_shift)
+		
+		return translated_profile
+		
     def copy(self):
         #not finished, deepcopy doesn't work here
         copied_hold = copy.deepcopy(self)
