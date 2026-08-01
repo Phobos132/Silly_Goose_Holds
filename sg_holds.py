@@ -14,37 +14,40 @@ import matplotlib.patches as patch
 import copy
 import shapely
 from shapely.plotting import plot_polygon
+import pickle
+
+PLOT_PROFILES = False
 
 # G-Code Preamble String
 g_code_contouring_preamble = fr'''
 (subroutine to set work offset in terms of machine coords)
-	o101 sub
-		g10 l2 p1 x0.0 y0.0 z0.0
-	o101 ENDsub
+    o101 sub
+        g10 l2 p1 x0.0 y0.0 z0.0
+    o101 ENDsub
     
 (setup and tool call - 1st argument is tool number)
-	o102 sub
-		(set modal codes)
-		g00 g17 g40 g80 g90 g90.1 g98 g64 P0.001
-		(set work offset)
-		o101 call
-		(select work offset)
-		g54
-		
-		(stop spindle)
-		m5
-		(first optional stop)
-		m1
-		(rapid to tool change position)
-		g0 g53 z0 
-		g53 x0 y-10
-		(select tool)
-		t #1 m6
-		(apply tool offset)
-		g43 h #1
-		(second optional stop)
-		m1
-	o102 ENDsub
+    o102 sub
+        (set modal codes)
+        g00 g17 g40 g80 g90 g90.1 g98 g64 P0.001
+        (set work offset)
+        o101 call
+        (select work offset)
+        g54
+        
+        (stop spindle)
+        m5
+        (first optional stop)
+        m1
+        (rapid to tool change position)
+        g0 g53 z0 
+        g53 x0 y-10
+        (select tool)
+        t #1 m6
+        (apply tool offset)
+        g43 h #1
+        (second optional stop)
+        m1
+    o102 ENDsub
 '''
 
 def cross2d(x, y):
@@ -73,70 +76,7 @@ def check_clearance(top_profile,bottom_profile,cutter_undercut,check_both_ways=T
         clearance_check = shapely.covers(top_offset_shape,bottom_polygon)
         
     return clearance_check
-
-def create_tombstone_gcode(x_width,
-                           y_width,
-                           hold_x_plus=None,
-                           hold_y_plus=None,
-                           hold_x_minus=None,
-                           hold_y_minus=None,
-                           origin = "x-,y-",
-                           cutter_height_in = 0.5,
-                           tool_number=239):
-							   
-	corner_clearance_profile = profile(top_edge_position = [5,-21],
-                                top_edge_radius = 30,
-                                top_ledge_angle = -np.pi/4,
-                                top_ledge_start_height = 44,
-                                bottom_edge_position = [3.5,-16],
-                                bottom_edge_radius = 6,
-                                bottom_ledge_angle = 0,
-                                bottom_ledge_start_height = -24,
-                                face_angle = np.pi/2,
-                                face_thickness = 10)
-	translations_x = 	   
-	hold_list = [hold_y_minus,hold_x_minus,hold_y_plus,hold_x_plus]
-	first_hold = next((item for item in my_list if item), None)
-	depths = first_hold.profile_series['depth']
-	z_step = depths.diff().mean()
-							   
-	for i,this_hold in enumerate(hold_list):
-		if this_hold == None:
-			hold_list[i] = hold(corner_clearance_profile,corner_clearance_profile,step=z_step)
-		elif (this_hold.depths != depths):
-			print("the holds don't all have the same depths, cannot generate gcode")
-			return None
-	# machine the bottom (y minus) hold first then go around in a clockwise direction
-		
-     hold_gcode = g_code_contouring_preamble + f'''
-O101 call
-O102 call [{tool_number}]
-G0 X0 Y1.0 Z{hold_series.iloc[0]['depth'] + 2.0}
-G40
-(G52 X{x_offset} Y{y_offset})
-G41
-G0 X-5.0 Y0.0 S2000 M3
-G1 Z{hold_series.iloc[0]['depth']+0.1} F40.00
-'''
-	for depth in depths
-		for this_hold in hold_list
-    for i,row in hold_series.iterrows():
-        profile = row['profile'].scale(1/25.4).rotate(rotation_rad)
-        #profile.plot()
-        #row['profile'].plot()
-        #profile = row['profile']
-        hold_profile_gcode,distance = generate_profile_arcs_gcode(profile,z_height=row['depth'],feedrate=40)
-        hold_gcode += hold_profile_gcode
-    
-    hold_gcode += f'G0 Z{hold_series.iloc[0]["depth"] + 2.0}\n'
-    hold_gcode += 'M5\n'
-    hold_gcode += 'M2\n'
-    print(hold_gcode)
-    with open(rf'NC Files/{name}.ngc', 'w') as text_file:
-        text_file.write(hold_gcode)
-    return hold_gcode
-                               
-                           
+                          
 class arc:
     #points = pd.DataFrame(index=['start','end','center'],columns=['x','y'],dtype=float)
     #clockwise = False
@@ -251,13 +191,13 @@ class arc:
                            clockwise_in = self.clockwise)
         return rotated_arc
 
-	def translate(self,xy_shift=[0,0]):
-		translated_arc = arc(start_point = self.points.loc['start'] + xy_shift,
-							 end_point = self.points.loc['end'] + xy_shift,
-							 center_point = self.points.loc['center'] + xy_shift,
-							 clockwise_in = self.clockwise)
-		return translated_arc
-							 
+    def translate(self,xy_shift=[0,0]):
+        translated_arc = arc(start_point = self.points.loc['start'] + xy_shift,
+                             end_point = self.points.loc['end'] + xy_shift,
+                             center_point = self.points.loc['center'] + xy_shift,
+                             clockwise_in = self.clockwise)
+        return translated_arc
+                             
     
     def flip_vertical(self):
         flipped_arc = self.copy()
@@ -418,7 +358,8 @@ class profile:
         self.arcs['bottom_edge'].refresh()
         
         #self.serial = self.generate_serial()
-        self.plot()
+        if PLOT_PROFILES:
+            self.plot()
 
     def scale(self,scale_factor):
         scaled_profile = copy.deepcopy(self)
@@ -436,15 +377,15 @@ class profile:
             rotated_profile.arcs[key] = this_arc.rotate(rotation_angle_rad)
             
         return rotated_profile
-		
+        
     def translate(self,x_shift,y_shift):
-		translated_profile = copy.deepcopy(self)
+        translated_profile = copy.deepcopy(self)
 
-		for key,this_arc in translated_profile.arcs.items():
-	            translated_profile.arcs[key] = this_arc.translate(x_shift,y_shift)
-		
-		return translated_profile
-		
+        for key,this_arc in translated_profile.arcs.items():
+                translated_profile.arcs[key] = this_arc.translate(x_shift,y_shift)
+        
+        return translated_profile
+        
     def copy(self):
         #not finished, deepcopy doesn't work here
         copied_hold = copy.deepcopy(self)
@@ -706,6 +647,77 @@ class hold:
             
         return hold_profiles
 
+
+corner_clearance_profile = profile(top_edge_position = [-21,5],
+                            top_edge_radius = 30,
+                            top_ledge_angle = -np.pi/2,
+                            top_ledge_start_height = 40,
+                            bottom_edge_position = [3.5,-16],
+                            bottom_edge_radius = 6,
+                            bottom_ledge_angle = 0,
+                            bottom_ledge_start_height = -24,
+                            face_angle = np.pi/2,
+                            face_thickness = 10)
+    
+def create_tombstone_gcode(x_width,
+                           y_width,
+                           hold_x_plus=None,
+                           hold_y_plus=None,
+                           hold_x_minus=None,
+                           hold_y_minus=None,
+                           origin = "x-,y-",
+                           cutter_height_in = 0.5,
+                           tool_number=239):
+
+    
+    o = 0.75
+    #set the translations initially based on a centered coordinate system origin
+    translations = np.array([[-x_width/2,y_width/2-o],
+                             [x_width/2-o,y_width/2],
+                             [x_width/2,-y_width/2+o],
+                             [-x_width/2+o,-y_width/2]])
+    
+    hold_list = [hold_y_minus,hold_x_minus,hold_y_plus,hold_x_plus]
+    first_hold = next((item for item in hold_list if item), None)
+    depths = first_hold.profile_series.index.values
+    z_step = np.diff(depths).mean()
+                               
+    for i,this_hold in enumerate(hold_list):
+        if this_hold == None:
+            hold_list[i] = hold(corner_clearance_profile,corner_clearance_profile,step=z_step)
+        elif (this_hold.depths != depths):
+            print("the holds don't all have the same depths, cannot generate gcode")
+            return None
+    # machine the bottom (y minus) hold first then go around in a clockwise direction
+    hold_gcode = g_code_contouring_preamble + f'''
+    O101 call
+    O102 call [{tool_number}]
+    G40
+    G0 X0 Y1.0 Z{hold_list.iloc[0]['depth'] + 2.0}
+    G41
+    G0 X-5.0 Y0.0 S2000 M3
+    G1 Z{hold_list.iloc[0]['depth']+0.1} F40.00
+    '''
+    for depth in depths:
+        for this_hold in hold_list:
+            for i,row in hold_series.iterrows():
+                profile = row['profile'].scale(1/25.4).rotate(rotation_rad)
+                #profile.plot()
+                #row['profile'].plot()
+                #profile = row['profile']
+                hold_profile_gcode,distance = generate_profile_arcs_gcode(profile,z_height=row['depth'],feedrate=40)
+                hold_gcode += hold_profile_gcode
+    
+    hold_gcode += f'G0 Z{hold_series.iloc[0]["depth"] + 2.0}\n'
+    hold_gcode += 'M5\n'
+    hold_gcode += 'M2\n'
+    print(hold_gcode)
+    with open(rf'NC Files/{name}.ngc', 'w') as text_file:
+        text_file.write(hold_gcode)
+    return hold_gcode
+                               
+ 
+
 if __name__ == "__main__":
     # new_arc = arc()
     # points = new_arc.to_lines(number_of_lines=4)
@@ -735,42 +747,52 @@ if __name__ == "__main__":
     # shapely.covered_by(profile_shape,offset_shape)
     
     
-    kats_profile = profile(top_edge_position = [20,30],
-                                top_edge_radius = 8,
-                                top_ledge_angle = 0.8,
-                                top_ledge_start_height = 30,
-                                bottom_edge_position = [20,-30],
-                                bottom_edge_radius = 4,
-                                bottom_ledge_angle = -np.pi/10,
-                                bottom_ledge_start_height = -35,
-                                face_angle = np.pi/2-0.3,
-                                face_thickness = 25)
+    # kats_profile = profile(top_edge_position = [20,30],
+    #                             top_edge_radius = 8,
+    #                             top_ledge_angle = 0.8,
+    #                             top_ledge_start_height = 30,
+    #                             bottom_edge_position = [20,-30],
+    #                             bottom_edge_radius = 4,
+    #                             bottom_ledge_angle = -np.pi/10,
+    #                             bottom_ledge_start_height = -35,
+    #                             face_angle = np.pi/2-0.3,
+    #                             face_thickness = 25)
 
-    nikis_profile = profile(top_edge_position = [28,15],
-                                top_edge_radius = 8,
-                                top_ledge_angle = 1.5,
-                                top_ledge_start_height = 20,
-                                bottom_edge_position = [10,-35],
-                                bottom_edge_radius = 3,
-                                bottom_ledge_angle = -np.pi/11,
-                                bottom_ledge_start_height = -20,
-                                face_angle = np.pi/2-0.3,
-                                face_thickness = 30)
+    # nikis_profile = profile(top_edge_position = [28,15],
+    #                             top_edge_radius = 8,
+    #                             top_ledge_angle = 1.5,
+    #                             top_ledge_start_height = 20,
+    #                             bottom_edge_position = [10,-35],
+    #                             bottom_edge_radius = 3,
+    #                             bottom_ledge_angle = -np.pi/11,
+    #                             bottom_ledge_start_height = -20,
+    #                             face_angle = np.pi/2-0.3,
+    #                             face_thickness = 30)
     
     undercut = 9
     
     # test = check_clearance(kats_profile,nikis_profile,undercut)
     # print(test)
     
-    my_hold_1 = hold(kats_profile,nikis_profile)
-    my_hold_2 = hold(nikis_profile,kats_profile)
+    # my_hold_1 = hold(kats_profile,nikis_profile)
+    # my_hold_2 = hold(nikis_profile,kats_profile)
+    
+    # with open("hold_1.pkl","wb") as file:
+    #     pickle.dump(my_hold_1,file)
+    # with open("hold_2.pkl","wb") as file:
+    #     pickle.dump(my_hold_2,file)
+    
+    with open("hold_1.pkl","rb") as file:
+        my_hold_1 = pickle.load(file)
+    with open("hold_2.pkl","rb") as file:
+        my_hold_2 = pickle.load(file)
     
     create_tombstone_gcode(80,
                             60,
                             hold_x_plus=my_hold_2,
                             hold_x_minus=my_hold_1,
                             origin = "x-,y-",
-                            cutter_height = 0.5,
+                            cutter_height_in = 0.5,
                             tool_number=1)
     
     
